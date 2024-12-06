@@ -22,6 +22,15 @@
   (ram (make-array #x800 :element-type 'u8 :initial-element 0)
    :type (simple-array u8 (#x800))))
 
+(defun print-cpu (&optional (cpu *default-cpu*))
+  (fresh-line)
+  (format t "ACC ~A~%" (cpu-accumulator cpu))
+  (format t "X   ~A~%" (cpu-x-register cpu))
+  (format t "Y   ~A~%" (cpu-y-register cpu))
+  (format t "PC  ~A~%" (cpu-program-counter cpu))
+  (format t "SP  ~A~%" (cpu-stack-pointer cpu))
+  (format t "ST  ~b~%" (cpu-status-register cpu)))
+
 ;; (defun get-acc (&optional (cpu *default-cpu*))
 ;;   (cpu-accumulator cpu))
 ;; (defun get-x (&optional (cpu *default-cpu*))
@@ -37,6 +46,11 @@
   (setf (cpu-x-register cpu) val))
 (defun set-y (val &optional (cpu *default-cpu*))
   (setf (cpu-y-register cpu) val))
+(defun set-pc (val &optional (cpu *default-cpu*))
+  (setf (cpu-program-counter cpu) val))
+
+(defun inc-pc (&optional (amount 1) (cpu *default-cpu*))
+  (setf (cpu-program-counter cpu) (+ amount (cpu-program-counter cpu))))
 
 
 (defun get-bit (byte position)
@@ -53,6 +67,11 @@
   (if (zerop value)
       (logand byte (lognot (ash 1 position))) ; Clear the bit
       (logior byte (ash 1 position))))       ; Set the bit
+
+(defun u8-to-s8 (byte)
+  (if (>= byte 128)
+      (- byte 256)
+      (the s8 byte)))
 
 (defun print-bits (n size)
   (format t (format nil "~~~D,'0B" size) (ldb (byte size 0) n))
@@ -188,11 +207,16 @@
 ;; | $4018–$401F   | $0008 | APU and I/O normally disabled.                 |
 ;; | $4020–$FFFF   | $BFE0 | Unmapped. Available for cartridge use.         |
 
-(defun print-memory ()
-  (dotimes (i #x0800)
-    (if (= 0 (mod i 38)) (format t "~%"))
-    (format t "~a " (read-memory i))))
+(defun print-memory (&optional (start 0) (count 0))
+  (if (> count 0)
+      (format t "~a~%" (subseq (cpu-ram *default-cpu*) start (+ start count)))
+      (dotimes (i #x0800)
+        (if (= 0 (mod i 38)) (format t "~%"))
+        (format t "~a " (read-memory i))
+        (if (= i #x0800)
+            (format t "~%")))))
 
+;; TODO return type?
 (defun read-memory (address)
   (declare (type u16 address))
   (cond
@@ -221,3 +245,146 @@
     ;; don't check beyond #FFFF as address will throw error if not u16
     ((<= address #xFFFF)
      (error "Writing cartridge not yet implemented."))))
+
+;; addressing
+;; implied - nothing
+;; immediate
+;;   one 8 bit op
+;; absolute - 16 bit address in little endian small first
+;; zero page - one 8 bit page 0 implied
+;; abs x or y absolute,X absolute,Y
+;;   16 bit add in LE add x or y to it - page cross
+;;   If the addition of the contents of the index register
+;;   effects in a change of the high-byte given by the base
+;;   address so that the effective address is on the next memory page,
+;;   the additional operation to increment the high-byte takes another CPU cycle.
+;;   This is also known as a crossing of page boundaries.
+;; zero x zero-page,x zero-page,y
+;;   one 8 bit add x to it no wrap on add
+;;   one 8 bit add y to it - only with ldx inst no wrap on add
+;; indirect
+;;   16 bit operand that you look up to get real address both in LE
+;;   jmp inst only
+;; pre-indexed indirect "(zero-page,x)"
+;;   one byte operand on zero page add x, lookup address there,
+;;   then get data at that address
+;; post-indexed indirect, (zero-page),Y
+;;   only y reg
+;;   get one byte for zp addr
+;;   look up 16 bit addr at that addr
+;;   add Y to it
+;;   look up byte at that addr
+;; relative addressing (conditional branching)
+;;   only conditional branch instructions
+
+;; TODO need to test addressing modes
+;; all of these assume pc already points to the first byte
+(defun implied-addressing () nil)
+
+(defun immediate ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (mem (read-memory pc)))
+    (inc-pc)
+    mem))
+
+(defun absolute ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (b1 (read-memory pc))
+         (b2 (read-memory (1+ pc)))
+         (mem (read-memory (+ (ash b2 8) b1))))
+    (inc-pc 2)
+    mem))
+
+;; (set-pc 4)
+;; (write-memory #x0109 6)
+;; (write-memory #x0108 7)
+;; (write-memory #x010A 8)
+;; (print-memory #x0108 3)
+
+
+(defun zero-page ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (addr (read-memory pc))
+         (mem (read-memory addr)))
+    (inc-pc)
+    mem))
+
+;; TODO check overflow
+(defun absolute-x ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (b1 (read-memory pc))
+         (b2 (read-memory (1+ pc)))
+         (mem (read-memory (+ (ash b2 8)
+                              b1
+                              (cpu-x-register *default-cpu*)))))
+    (inc-pc 2)
+    mem))
+
+;; TODO check overflow
+(defun absolute-y ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (b1 (read-memory pc))
+         (b2 (read-memory (1+ pc)))
+         (mem (read-memory (+ (ash b2 8)
+                              b1
+                              (cpu-y-register *default-cpu*)))))
+    (inc-pc 2)
+    mem))
+
+;; zero-page,x
+(defun zero-page-x ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (addr (read-memory pc))
+         (mem (+ (read-memory addr) (cpu-x-register *default-cpu*))))
+    (inc-pc)
+    mem))
+
+;; zero-page,y
+(defun zero-page-y ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (addr (read-memory pc))
+         (mem (+ (read-memory addr) (cpu-y-register *default-cpu*))))
+    (inc-pc)
+    mem))
+
+(defun indirect ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (b1 (read-memory pc))
+         (b2 (read-memory (1+ pc)))
+         (eff-addr (+ (ash b2 8) b1))
+         (mem1 (read-memory eff-addr))
+         (mem2 (read-memory (1+ eff-addr))))
+    (inc-pc 2)
+    (+ (ash mem2 8) mem1)))
+
+;; (set-pc 0)
+;; (print-memory 0 10)
+;; (format t "~a" (indirect))
+
+;; (zero-page,x)
+;; TODO no overflow?
+(defun pre-indexed-indirect ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (op (+ (read-memory pc) (cpu-x-register *default-cpu*)))
+         (b1 (read-memory op))
+         (b2 (read-memory (1+ op)))
+         (eff-addr (+ (ash b2 8) b1)))
+    (inc-pc)
+    (read-memory eff-addr)))
+
+;; (zero-page),y
+;; TODO check overflow
+(defun post-indexed-indirect ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+         (op (read-memory pc))
+         (b1 (read-memory op))
+         (b2 (read-memory (1+ op)))
+         (eff-addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*))))
+    (inc-pc)
+    (read-memory eff-addr)))
+
+(defun relative ()
+  (let* ((pc (cpu-program-counter *default-cpu*))
+        (b (read-memory pc)))
+    (inc-pc)
+    b))
