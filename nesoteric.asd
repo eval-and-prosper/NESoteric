@@ -5,7 +5,7 @@
   :mailto "evalandprosper@gmail.com"
   :license "MIT"
   :source-control "https://github.com/eval-and-prosper/NESoteric.git"
-  :depends-on ()
+  :depends-on (:alexandria)
   :components ((:module "src"
                 :components
                 ((:file "main")
@@ -20,5 +20,6 @@
                "rove")
   :components ((:module "tests"
                 :components
-                ((:file "main")))) :description "Test system for nesoteric"
+                ((:file "main")
+                 (:file "instructions")))) :description "Test system for nesoteric"
   :perform (test-op (op c) (symbol-call :rove :run c)))
