@@ -65,6 +65,14 @@
 (defun inc-pc (&optional (amount 1) (cpu *default-cpu*))
   (setf (cpu-program-counter cpu) (+ amount (cpu-program-counter cpu))))
 
+(defun dec-sp (&optional (amount 1) (cpu *default-cpu*))
+ (setf (cpu-stack-pointer *default-cpu*)
+        (logand #xFF (- (cpu-stack-pointer cpu) amount))))
+
+(defun inc-sp (&optional (amount 1) (cpu *default-cpu*))
+ (setf (cpu-stack-pointer *default-cpu*)
+        (logand #xFF (+ (cpu-stack-pointer cpu) amount))))
+
 
 (defun get-bit (byte position)
   "Retrieve the bit at POSITION (0-7) in BYTE."
@@ -194,6 +202,12 @@
     ((<= address #xFFFF)
      (error "Reading cartridge not yet implemented."))))
 
+;; TODO replace redundant code with this function
+(defun read-memory-u16 (address)
+  (let ((mem1 (read-memory address))
+        (mem2 (read-memory (1+ address))))
+    (+ (ash mem2 8) mem1)))
+
 (defun write-memory (address value)
   (declare
    (type u16 address)
@@ -210,36 +224,9 @@
     ((<= address #xFFFF)
      (error "Writing cartridge not yet implemented."))))
 
-;; addressing
-;; implied - nothing
-;; immediate
-;;   one 8 bit op
-;; absolute - 16 bit address in little endian small first
-;; zero page - one 8 bit page 0 implied
-;; abs x or y absolute,X absolute,Y
-;;   16 bit add in LE add x or y to it - page cross
-;;   If the addition of the contents of the index register
-;;   effects in a change of the high-byte given by the base
-;;   address so that the effective address is on the next memory page,
-;;   the additional operation to increment the high-byte takes another CPU cycle.
-;;   This is also known as a crossing of page boundaries.
-;; zero x zero-page,x zero-page,y
-;;   one 8 bit add x to it no wrap on add
-;;   one 8 bit add y to it - only with ldx inst no wrap on add
-;; indirect
-;;   16 bit operand that you look up to get real address both in LE
-;;   jmp inst only
-;; pre-indexed indirect "(zero-page,x)"
-;;   one byte operand on zero page add x, lookup address there,
-;;   then get data at that address
-;; post-indexed indirect, (zero-page),Y
-;;   only y reg
-;;   get one byte for zp addr
-;;   look up 16 bit addr at that addr
-;;   add Y to it
-;;   look up byte at that addr
-;; relative addressing (conditional branching)
-;;   only conditional branch instructions
+;; ============================================================================
+;; Addressing
+;; ============================================================================
 
 ;; TODO need to test addressing modes
 ;; all of these assume pc already points to the first byte
@@ -247,70 +234,86 @@
 
 (defun immediate ()
   (let* ((pc (cpu-program-counter *default-cpu*))
-         (mem (read-memory pc)))
+         ;; (mem (read-memory pc))
+         )
     (inc-pc)
-    mem))
+    ;; mem
+    pc))
 
 (defun absolute ()
   (let* ((pc (cpu-program-counter *default-cpu*))
          (b1 (read-memory pc))
          (b2 (read-memory (1+ pc)))
-         (mem (read-memory (+ (ash b2 8) b1))))
+         ;; (mem (read-memory (+ (ash b2 8) b1)))
+         (addr (+ (ash b2 8) b1)))
     (inc-pc 2)
-    mem))
+    ;; mem
+    addr))
 
 (defun zero-page ()
   (let* ((pc (cpu-program-counter *default-cpu*))
          (addr (read-memory pc))
-         (mem (read-memory addr)))
+         ;; (mem (read-memory addr))
+         )
     (inc-pc)
-    mem))
+    ;; mem
+    addr))
 
 ;; TODO check overflow
 (defun absolute-x ()
   (let* ((pc (cpu-program-counter *default-cpu*))
          (b1 (read-memory pc))
          (b2 (read-memory (1+ pc)))
-         (mem (read-memory (+ (ash b2 8)
-                              b1
-                              (cpu-x-register *default-cpu*)))))
+         ;; (mem (read-memory (+ (ash b2 8)
+         ;;                      b1
+         ;;                      (cpu-x-register *default-cpu*))))
+         (addr (+ (ash b2 8) b1 (cpu-x-register *default-cpu*)))
+         )
     (inc-pc 2)
-    mem))
+    ;; mem
+    addr))
 
 ;; TODO check overflow
 (defun absolute-y ()
   (let* ((pc (cpu-program-counter *default-cpu*))
          (b1 (read-memory pc))
          (b2 (read-memory (1+ pc)))
-         (mem (read-memory (+ (ash b2 8)
-                              b1
-                              (cpu-y-register *default-cpu*)))))
+         ;; (mem (read-memory (+ (ash b2 8)
+         ;;                      b1
+         ;;                      (cpu-y-register *default-cpu*))))
+         (addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*)))
+         )
     (inc-pc 2)
-    mem))
+    ;; mem
+    addr))
 
 ;; zero-page,x
 (defun zero-page-x ()
   (let* ((pc (cpu-program-counter *default-cpu*))
-         (addr (read-memory pc))
-         (mem (read-memory (logand #xFF (+ addr (cpu-x-register *default-cpu*))))))
+         (zp (read-memory pc))
+         ;; (mem (read-memory (logand #xFF (+ addr (cpu-x-register *default-cpu*)))))
+         (addr (logand #xFF (+ zp (cpu-x-register *default-cpu*)))))
     (inc-pc)
-    mem))
+    ;; mem
+    addr))
 
 ;; zero-page,y
 (defun zero-page-y ()
   (let* ((pc (cpu-program-counter *default-cpu*))
-         (addr (read-memory pc))
-         (mem (read-memory (logand #xFF (+ addr (cpu-y-register *default-cpu*))))))
+         (zp (read-memory pc))
+         ;; (mem (read-memory (logand #xFF (+ addr (cpu-y-register *default-cpu*)))))
+         (addr (logand #xFF (+ zp (cpu-y-register *default-cpu*)))))
     (inc-pc)
-    mem))
+    ;; mem
+    addr))
 
 (defun indirect ()
   (let* ((pc (cpu-program-counter *default-cpu*))
          (b1 (read-memory pc))
          (b2 (read-memory (1+ pc)))
-         (eff-addr (+ (ash b2 8) b1))
-         (mem1 (read-memory eff-addr))
-         (mem2 (read-memory (1+ eff-addr))))
+         (addr (+ (ash b2 8) b1))
+         (mem1 (read-memory addr))
+         (mem2 (read-memory (1+ addr))))
     (inc-pc 2)
     (+ (ash mem2 8) mem1)))
 
@@ -322,9 +325,10 @@
          (op (logand #xFF (+ (read-memory pc) (cpu-x-register *default-cpu*))))
          (b1 (read-memory op))
          (b2 (read-memory (logand #xFF (1+ op))))
-         (eff-addr (+ (ash b2 8) b1)))
+         (addr (+ (ash b2 8) b1)))
     (inc-pc)
-    (read-memory eff-addr)))
+    ;; (read-memory eff-addr)
+    addr))
 
 ;; (zero-page),y
 ;; TODO check overflow
@@ -333,58 +337,42 @@
          (op (read-memory pc))
          (b1 (read-memory op))
          (b2 (read-memory (1+ op)))
-         (eff-addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*))))
+         (addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*))))
     (inc-pc)
-    (read-memory eff-addr)))
+    ;; (read-memory eff-addr)
+    addr))
 
+;; TODO I don't think this is right we aren't adding this
+;; to the the pc, but I'm not sure when you add it to the pc
+;; before or after?
+;; not sure how to fix this up for returning addresses like the others
 (defun relative ()
   (let* ((pc (cpu-program-counter *default-cpu*))
-        (b (read-memory pc)))
+         (b (read-memory pc))
+         )
     (inc-pc)
-    b))
+    b
+    ;; pc
+    ))
 
 ;; TODO whoops need addressing modes for accumulator
+(defun accumulator ())
 
-;; (define-constant +addressing-modes+
-;;     `((:implied nil)
-;;       (:immediate ,#'immediate)
-;;       (:absolute ,#'absolute)
-;;       (:zero-page ,#'zero-page)
-;;       (:absolute-x ,#'absolute-x)
-;;       (:absolute-y ,#'absolute-y)
-;;       (:zero-page-x ,#'zero-page-x)
-;;       (:zero-page-y ,#'zero-page-y)
-;;       (:indirect ,#'indirect)
-;;       (:pre-indexed-indirect ,#'pre-indexed-indirect)
-;;       (:post-indexed-indirect ,#'post-indexed-indirect))
-;;   :test #'equal)
-
-;; (defconstant +addressing-modes+
-;;     '((:implied nil)
-;;       (:immediate #'immediate)
-;;       (:absolute #'absolute)
-;;       (:zero-page #'zero-page)
-;;       (:absolute-x #'absolute-x)
-;;       (:absolute-y #'absolute-y)
-;;       (:zero-page-x #'zero-page-x)
-;;       (:zero-page-y #'zero-page-y)
-;;       (:indirect #'indirect)
-;;       (:pre-indexed-indirect #'pre-indexed-indirect)
-;;       (:post-indexed-indirect #'post-indexed-indirect)))
 
 ;; Should be a constant but it looks like that's impossible
 (defparameter +addressing-modes+
-    `((:implied nil)
-      (:immediate ,#'immediate)
-      (:absolute ,#'absolute)
-      (:zero-page ,#'zero-page)
-      (:absolute-x ,#'absolute-x)
-      (:absolute-y ,#'absolute-y)
-      (:zero-page-x ,#'zero-page-x)
-      (:zero-page-y ,#'zero-page-y)
-      (:indirect ,#'indirect)
-      (:pre-indexed-indirect ,#'pre-indexed-indirect)
-      (:post-indexed-indirect ,#'post-indexed-indirect)))
+  `((:implied nil)
+    (:accumulator nil)
+    (:immediate ,#'immediate)
+    (:absolute ,#'absolute)
+    (:zero-page ,#'zero-page)
+    (:absolute-x ,#'absolute-x)
+    (:absolute-y ,#'absolute-y)
+    (:zero-page-x ,#'zero-page-x)
+    (:zero-page-y ,#'zero-page-y)
+    (:indirect ,#'indirect)
+    (:pre-indexed-indirect ,#'pre-indexed-indirect)
+    (:post-indexed-indirect ,#'post-indexed-indirect)))
 
 ;; =============================================================================
 ;; Instructions
@@ -394,6 +382,7 @@
                                          ;; :element-type 'function
                                          :initial-element nil))
 
+#+or
 (setf *instructions* (make-array #x100 :initial-element nil))
 
 (defun update-z-flag (value)
@@ -423,22 +412,11 @@
 
 ;; adc add with carry
 ;; A = A + memory + C
-;; | Addressing mode | Opcode | Bytes |                Cycles |
-;; |-----------------+--------+-------+-----------------------|
-;; | #Immediate      | $69    |     2 |                     2 |
-;; | Zero Page       | $65    |     2 |                     3 |
-;; | Zero Page,X     | $75    |     2 |                     4 |
-;; | Absolute        | $6D    |     3 |                     4 |
-;; | Absolute,X      | $7D    |     3 | 4 (5 if page crossed) |
-;; | Absolute,Y      | $79    |     3 | 4 (5 if page crossed) |
-;; | (Indirect,X)    | $61    |     2 |                     6 |
-;; | (Indirect),Y    | $71    |     2 | 5 (6 if page crossed) |
-
-(defun adc (mem)
-  ;; (declare (optimize (speed 3) (safety 0)))
-  (declare (type u8 mem))
+(defun adc (address)
+  ;; (declare (type u8 mem))
   (let* ((A (cpu-accumulator *default-cpu*))
          (carry (get-flag :carry))
+         (mem (read-memory address))
          (res (+ A mem carry)))
     (declare (type u8 A)
              (type bit carry))
@@ -486,9 +464,10 @@
 ;; A = A & Memory
 ;; Z result == 0
 ;; N result bit 7
-(defun inst-and (mem)
-  (declare (type u8 mem))
-  (let ((result (logand mem (cpu-accumulator *default-cpu*))))
+(defun inst-and (address)
+  ;; (declare (type u8 mem))
+  (let* ((mem (read-memory address))
+        (result (logand mem (cpu-accumulator *default-cpu*))))
     ;; (set-flag :zero (if (zerop result) 1 0))
     ;; (set-flag :negative (get-bit result 7))
     (update-zn-flags result)
@@ -505,17 +484,17 @@
    (:indirect-x  #x21 2 6)
    (:indirect-y  #x31 2 5 :page-cross 1)))
 
-(defun asl (mem) mem)
-(defun bcc (mem) mem)
-(defun bcs (mem) mem)
-(defun beq (mem) mem)
-(defun inst-bit (mem) mem)
-(defun bmi (mem) mem)
-(defun bne (mem) mem)
-(defun bpl (mem) mem)
-(defun brk (mem) mem)
-(defun bvc (mem) mem)
-(defun bvs (mem) mem)
+(defun asl (address) address)
+(defun bcc (address) address)
+(defun bcs (address) address)
+(defun beq (address) address)
+(defun inst-bit (address) address)
+(defun bmi (address) address)
+(defun bne (address) address)
+(defun bpl (address) address)
+(defun brk (address) address)
+(defun bvc (address) address)
+(defun bvs (address) address)
 
 (defun clc ()
   (set-flag :carry 0))
@@ -545,11 +524,11 @@
  #'clv
  '((:implied #xB8 1 2)))
 
-(defun cmp (mem) mem)
-(defun cpx (mem) mem)
-(defun cpy (mem) mem)
+(defun cmp (address) address)
+(defun cpx (address) address)
+(defun cpy (address) address)
 
-(defun dec (mem) mem)
+(defun dec (address) address)
 
 (defun dex ()
   (setf (cpu-x-register *default-cpu*) (logand #xFF (- (cpu-x-register *default-cpu*) 1)))
@@ -567,43 +546,47 @@
  #'dey
  '((:implied #x88 1 2)))
 
-(defun eor (mem) mem)
-(defun inc (mem) mem)
-(defun inx (mem) mem)
-(defun iny (mem) mem)
+(defun eor (address)
+  (let ((mem (read-memory address)))
+    (setf (cpu-accumulator *default-cpu*) (logxor mem (cpu-accumulator *default-cpu*)))
+    (update-zn-flags (cpu-accumulator *default-cpu*))))
 
-(defun jmp (mem) mem)
+(make-instruction
+ #'eor
+ '((:immediate   #x49 2 2)
+   (:zero-page   #x45 2 3)
+   (:zero-page-x #x55 2 4)
+   (:absolute    #x4D 3 4)
+   (:absolute-x  #x5D 3 4 :page-cross 1)
+   (:absolute-y  #x59 3 4 :page-cross 1)
+   (:indirect-x  #x41 2 6)
+   (:indirect-y  #x51 2 5 :page-cross 1)))
+
+(defun inc (address) address)
+(defun inx (address) address)
+(defun iny (address) address)
+
+(defun jmp (address) address)
 
 ;; (make-instruction
 ;;  #'jmp
 ;;  '((:absolute #x4C 3 3)
 ;;    (:indirect #x6C 3 5)))
 
-(defun jsr (mem) mem)
+(defun jsr (address) address)
 
-;; | Addressing mode | Opcode | Bytes |                Cycles |
-;; |-----------------+--------+-------+-----------------------|
-;; | Immediate       | $A9    |     2 |                     2 |
-;; | Zero Page       | $A5    |     2 |                     3 |
-;; | Zero Page,X     | $B5    |     2 |                     4 |
-;; | Absolute        | $AD    |     3 |                     4 |
-;; | Absolute,X      | $BD    |     3 | 4 (5 if page crossed) |
-;; | Absolute,Y      | $B9    |     3 | 4 (5 if page crossed) |
-;; | (Indirect,X)    | $A1    |     2 |                     6 |
-;; | (Indirect),Y    | $B1    |     2 | 5 (6 if page crossed) |
 ;; A = memory
-
 ;; LDA loads a memory value into the accumulator.
-
 ;; Flag New value
 ;; Z - Zero result == 0
 ;; N - Negative result bit 7
-(defun lda (mem)
+(defun lda (address)
   "Load A - loads a memory value into the accumulator."
-  (set-acc mem)
-  ;; (set-flag :zero (if (zerop mem) 1 0))
-  ;; (set-flag :negative (get-bit mem 7))
-  (update-zn-flags mem))
+  (let ((mem (read-memory address)))
+    (set-acc mem)
+    ;; (set-flag :zero (if (zerop mem) 1 0))
+    ;; (set-flag :negative (get-bit mem 7))
+    (update-zn-flags mem)))
 
 (make-instruction
  #'lda
@@ -616,12 +599,13 @@
    (:indirect-x  #xA1 2 6)
    (:indirect-y  #xB1 2 5 :page-cross 1)))
 
-(defun ldx (mem)
+(defun ldx (address)
   "Load X - loads a memory value into the X register."
-  (set-x mem)
-  ;; (set-flag :zero (if (zerop mem) 1 0))
-  ;; (set-flag :negative (get-bit mem 7))
-  (update-zn-flags mem))
+  (let ((mem (read-memory address)))
+    (set-x mem)
+    ;; (set-flag :zero (if (zerop mem) 1 0))
+    ;; (set-flag :negative (get-bit mem 7))
+    (update-zn-flags mem)))
 
 (make-instruction
  #'ldx
@@ -631,34 +615,70 @@
    (:absolute    #xAE 3 4)
    (:absolute-y  #xBE 3 4 :page-cross 1)))
 
-(defun ldy (mem)
+(defun ldy (address)
   "Load Y - loads a memory value into the Y register."
-  (set-y mem)
-  ;; (set-flag :zero (if (zerop mem) 1 0))
-  ;; (set-flag :negative (get-bit mem 7))
-  (update-zn-flags mem))
+  (let ((mem (read-memory address)))
+    (set-y mem)
+    ;; (set-flag :zero (if (zerop mem) 1 0))
+    ;; (set-flag :negative (get-bit mem 7))
+    (update-zn-flags mem)))
 
 (make-instruction
  #'ldy
  '((:immediate   #xA0 2 2)
    (:zero-page   #xA4 2 3)
-   (:zero-page-y #xB4 2 4)
+   (:zero-page-x #xB4 2 4)
    (:absolute    #xAC 3 4)
-   (:absolute-y  #xBC 3 4 :page-cross 1)))
+   (:absolute-x  #xBC 3 4 :page-cross 1)))
 
-(defun lsr (mem) mem)
+(defun lsr (address) address)
 
 (defun nop ())
 
-(defun ora (mem) mem)
+;; (defun ora (mem) mem)
 
-(defun pha ())
-(defun php ())
+(defun ora (address)
+  (let ((mem (read-memory address)))
+    (setf (cpu-accumulator *default-cpu*) (logior mem (cpu-accumulator *default-cpu*)))
+    (update-zn-flags (cpu-accumulator *default-cpu*))))
+
+(make-instruction
+ #'ora
+ '((:immediate   #x09 2 2)
+   (:zero-page   #x05 2 3)
+   (:zero-page-x #x15 2 4)
+   (:absolute    #x0D 3 4)
+   (:absolute-x  #x1D 3 4 :page-cross 1)
+   (:absolute-y  #x19 3 4 :page-cross 1)
+   (:indirect-x  #x01 2 6)
+   (:indirect-y  #x11 2 5 :page-cross 1)))
+
+(defun pha ()
+  (write-memory (+ #x0100 (cpu-stack-pointer *default-cpu*))
+                (cpu-accumulator *default-cpu*))
+  (dec-sp))
+
+(make-instruction
+ #'pha
+ '((:implied #x48 1 3)))
+
+(defun php ()
+  (let ((flags (cpu-status-register *default-cpu*)))
+    ;; break and unused always set as 1
+    (setf flags (logior #x30 flags))
+    (write-memory (+ #x0100 (cpu-stack-pointer *default-cpu*))
+                  flags))
+  (dec-sp))
+
+(make-instruction
+ #'php
+ '((:implied #x08 1 3)))
+
 (defun pla ())
 (defun plp ())
 
-(defun rol (mem) mem)
-(defun ror (mem) mem)
+(defun rol (address) address)
+(defun ror (address) address)
 
 (defun rti ())
 (defun rts ())
@@ -686,25 +706,15 @@
  #'sei
  '((:implied #x78 1 2)))
 
-;; | Addressing mode | Opcode | Bytes | Cycles |
-;; |-----------------+--------+-------+--------|
-;; | Zero Page       | $85    |     2 |      3 |
-;; | Zero Page,X     | $95    |     2 |      4 |
-;; | Absolute        | $8D    |     3 |      4 |
-;; | Absolute,X      | $9D    |     3 |      5 |
-;; | Absolute,Y      | $99    |     3 |      5 |
-;; | (Indirect,X)    | $81    |     2 |      6 |
-;; | (Indirect),Y    | $91    |     2 |      6 |
 ;; memory = A
 ;; STA stores the accumulator value into memory.
 ;; TODO not sure about this actually
 ;; TODO yeah pretty sure how I do addressing is wrong for these
 ;; TODO STA $80 should just store A at $80
 ;; TODO probably need to separate calculating the address from the fetch
-(defun sta (mem)
+(defun sta (address)
   "Store A"
-  (format t "~a~%" mem)
-  (write-memory mem (cpu-accumulator *default-cpu*)))
+  (write-memory address (cpu-accumulator *default-cpu*)))
 
 (make-instruction
  #'sta
@@ -716,8 +726,8 @@
    (:indirect-x  #x81 2 6)
    (:indirect-y  #x91 2 6)))
 
-(defun stx (mem) mem)
-(defun sty (mem) mem)
+(defun stx (address) address)
+(defun sty (address) address)
 
 (defun tax ()
   "Transfer A to X"
@@ -737,18 +747,31 @@
  #'tay
  '((:implied #xA8 1 2)))
 
-(defun tsx ())
+(defun tsx ()
+  (setf (cpu-x-register *default-cpu*)
+        (cpu-stack-pointer *default-cpu*))
+  (update-zn-flags (cpu-x-register *default-cpu*)))
+
+(make-instruction
+ #'tsx
+ '((:implied #xBA 1 2)))
 
 (defun txa ()
   "Transfer X to A"
   (setf (cpu-accumulator *default-cpu*) (cpu-x-register *default-cpu*))
-  (update-zn-flags (cpu-y-register *default-cpu*)))
+  (update-zn-flags (cpu-x-register *default-cpu*)))
 
 (make-instruction
  #'txa
  '((:implied #x8A 1 2)))
 
-(defun txs ())
+(defun txs ()
+  (setf (cpu-stack-pointer *default-cpu*)
+        (cpu-x-register *default-cpu*)))
+
+(make-instruction
+ #'txs
+ '((:implied #x9A 1 2)))
 
 (defun tya ()
   "Transfer Y to A"
@@ -758,21 +781,3 @@
 (make-instruction
  #'tya
  '((:implied #x98 1 2)))
-
-;; (setf (cpu-program-counter *default-cpu*) 0)
-;; (set-flag :carry 0)
-;; (set-acc 4)
-;; (print-cpu)
-;; (print-memory 0 10)
-
-;; (set-acc 19)
-;; (set-x 0)
-;; (write-memory 0 #x98)
-;; (write-memory 1 6)
-;; (write-memory 6 8)
-
-;; (write-memory 2 #x29)
-;; (write-memory 3 7)
-
-;; (cpu-step)
-;; (print-cpu)

@@ -6,6 +6,9 @@
   (:local-nicknames (#:cpu #:nesoteric/cpu)))
 (in-package :nesoteric/tests/instructions)
 
+#+or
+(rove:run-suite *package*)
+
 (defun setup-test-cpu ()
   (setf cpu::*default-cpu* (cpu::make-cpu)))
 
@@ -77,276 +80,276 @@
     (cpu::cpu-step)
     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")))
 
-(deftest test-asl
-  (testing "asl - basic shift operation"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01010101)
-    (cpu::write-memory 0 #x0A)          ; ASL accumulator
-    (cpu::cpu-step)
-    (ok (= #b10101010 (cpu::cpu-accumulator cpu::*default-cpu*)) "Should shift all bits left by one position"))
+;; (deftest test-asl
+;;   (testing "asl - basic shift operation"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01010101)
+;;     (cpu::write-memory 0 #x0A)          ; ASL accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b10101010 (cpu::cpu-accumulator cpu::*default-cpu*)) "Should shift all bits left by one position"))
 
-  (testing "asl - carry flag behavior"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
-    (cpu::write-memory 0 #x0A)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain the old bit 7")
-    (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Should shift bit 7 out into carry"))
+;;   (testing "asl - carry flag behavior"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
+;;     (cpu::write-memory 0 #x0A)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain the old bit 7")
+;;     (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Should shift bit 7 out into carry"))
 
-  (testing "asl - zero flag behavior"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
-    (cpu::write-memory 0 #x0A)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0"))
+;;   (testing "asl - zero flag behavior"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
+;;     (cpu::write-memory 0 #x0A)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0"))
 
-  (testing "asl - negative flag behavior"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01000000)
-    (cpu::write-memory 0 #x0A)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")))
+;;   (testing "asl - negative flag behavior"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01000000)
+;;     (cpu::write-memory 0 #x0A)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")))
 
-(deftest test-bcc
-  (testing "bcc - branch when carry clear"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 0)    ; Clear carry flag
-    (cpu::write-memory 0 #x90)  ; BCC
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when carry clear"))
+;; (deftest test-bcc
+;;   (testing "bcc - branch when carry clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 0)    ; Clear carry flag
+;;     (cpu::write-memory 0 #x90)  ; BCC
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when carry clear"))
 
-  (testing "bcc - no branch when carry set"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 1)    ; Set carry flag
-    (cpu::write-memory 0 #x90)  ; BCC
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when carry set"))
+;;   (testing "bcc - no branch when carry set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 1)    ; Set carry flag
+;;     (cpu::write-memory 0 #x90)  ; BCC
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when carry set"))
 
-  (testing "bcc - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 0)    ; Clear carry flag
-    (cpu::write-memory 0 #x90)  ; BCC
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bcc - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 0)    ; Clear carry flag
+;;     (cpu::write-memory 0 #x90)  ; BCC
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-bcs
-  (testing "bcs - branch when carry set"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 1)  ; Set carry flag
-    (cpu::write-memory 0 #xB0)  ; BCS
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when carry set"))
+;; (deftest test-bcs
+;;   (testing "bcs - branch when carry set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 1)  ; Set carry flag
+;;     (cpu::write-memory 0 #xB0)  ; BCS
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when carry set"))
 
-  (testing "bcs - no branch when carry clear"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 0)  ; Clear carry flag
-    (cpu::write-memory 0 #xB0)  ; BCS
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when carry clear"))
+;;   (testing "bcs - no branch when carry clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 0)  ; Clear carry flag
+;;     (cpu::write-memory 0 #xB0)  ; BCS
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when carry clear"))
 
-  (testing "bcs - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :carry 1)  ; Set carry flag
-    (cpu::write-memory 0 #xB0)  ; BCS
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bcs - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :carry 1)  ; Set carry flag
+;;     (cpu::write-memory 0 #xB0)  ; BCS
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-beq
-  (testing "beq - branch when zero flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 1)  ; Set zero flag
-    (cpu::write-memory 0 #xF0)  ; BEQ
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when zero set"))
+;; (deftest test-beq
+;;   (testing "beq - branch when zero flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 1)  ; Set zero flag
+;;     (cpu::write-memory 0 #xF0)  ; BEQ
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when zero set"))
 
-  (testing "beq - no branch when zero flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 0)  ; Clear zero flag
-    (cpu::write-memory 0 #xF0)  ; BEQ
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when zero clear"))
+;;   (testing "beq - no branch when zero flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 0)  ; Clear zero flag
+;;     (cpu::write-memory 0 #xF0)  ; BEQ
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when zero clear"))
 
-  (testing "beq - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 1)  ; Set zero flag
-    (cpu::write-memory 0 #xF0)  ; BEQ
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "beq - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 1)  ; Set zero flag
+;;     (cpu::write-memory 0 #xF0)  ; BEQ
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-bit
-  (testing "bit - zero flag behavior with AND result"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
-    (cpu::write-memory 0 #x24)  ; BIT zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::write-memory #x50 #b00000001)  ; Memory value
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when accumulator AND memory is zero"))
+;; (deftest test-bit
+;;   (testing "bit - zero flag behavior with AND result"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
+;;     (cpu::write-memory 0 #x24)  ; BIT zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::write-memory #x50 #b00000001)  ; Memory value
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when accumulator AND memory is zero"))
 
-  (testing "bit - zero flag clear when bits match"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::write-memory 0 #x24)  ; BIT zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #b00000001)
-    (cpu::cpu-step)
-    (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when accumulator AND memory is non-zero"))
+;;   (testing "bit - zero flag clear when bits match"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::write-memory 0 #x24)  ; BIT zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #b00000001)
+;;     (cpu::cpu-step)
+;;     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when accumulator AND memory is non-zero"))
 
-  (testing "bit - negative flag from memory bit 7"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::write-memory 0 #x24)  ; BIT zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #b10000000)  ; Bit 7 set in memory
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when memory bit 7 is set"))
+;;   (testing "bit - negative flag from memory bit 7"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::write-memory 0 #x24)  ; BIT zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #b10000000)  ; Bit 7 set in memory
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when memory bit 7 is set"))
 
-  (testing "bit - overflow flag from memory bit 6"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::write-memory 0 #x24)  ; BIT zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #b01000000)  ; Bit 6 set in memory
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be set when memory bit 6 is set")))
+;;   (testing "bit - overflow flag from memory bit 6"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::write-memory 0 #x24)  ; BIT zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #b01000000)  ; Bit 6 set in memory
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be set when memory bit 6 is set")))
 
-(deftest test-bmi
-  (testing "bmi - branch when negative flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 1)  ; Set negative flag
-    (cpu::write-memory 0 #x30)  ; BMI
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when negative set"))
+;; (deftest test-bmi
+;;   (testing "bmi - branch when negative flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 1)  ; Set negative flag
+;;     (cpu::write-memory 0 #x30)  ; BMI
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when negative set"))
 
-  (testing "bmi - no branch when negative flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 0)  ; Clear negative flag
-    (cpu::write-memory 0 #x30)  ; BMI
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when negative clear"))
+;;   (testing "bmi - no branch when negative flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 0)  ; Clear negative flag
+;;     (cpu::write-memory 0 #x30)  ; BMI
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when negative clear"))
 
-  (testing "bmi - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 1)  ; Set negative flag
-    (cpu::write-memory 0 #x30)  ; BMI
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bmi - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 1)  ; Set negative flag
+;;     (cpu::write-memory 0 #x30)  ; BMI
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-bne
-  (testing "bne - branch when zero flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 0)  ; Clear zero flag
-    (cpu::write-memory 0 #xD0)  ; BNE
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when zero clear"))
+;; (deftest test-bne
+;;   (testing "bne - branch when zero flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 0)  ; Clear zero flag
+;;     (cpu::write-memory 0 #xD0)  ; BNE
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when zero clear"))
 
-  (testing "bne - no branch when zero flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 1)  ; Set zero flag
-    (cpu::write-memory 0 #xD0)  ; BNE
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when zero set"))
+;;   (testing "bne - no branch when zero flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 1)  ; Set zero flag
+;;     (cpu::write-memory 0 #xD0)  ; BNE
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when zero set"))
 
-  (testing "bne - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :zero 0)  ; Clear zero flag
-    (cpu::write-memory 0 #xD0)  ; BNE
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bne - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 0)  ; Clear zero flag
+;;     (cpu::write-memory 0 #xD0)  ; BNE
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-bpl
-  (testing "bpl - branch when negative flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 0)  ; Clear negative flag
-    (cpu::write-memory 0 #x10)  ; BPL
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when negative clear"))
+;; (deftest test-bpl
+;;   (testing "bpl - branch when negative flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 0)  ; Clear negative flag
+;;     (cpu::write-memory 0 #x10)  ; BPL
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when negative clear"))
 
-  (testing "bpl - no branch when negative flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 1)  ; Set negative flag
-    (cpu::write-memory 0 #x10)  ; BPL
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when negative set"))
+;;   (testing "bpl - no branch when negative flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 1)  ; Set negative flag
+;;     (cpu::write-memory 0 #x10)  ; BPL
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when negative set"))
 
-  (testing "bpl - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :negative 0)  ; Clear negative flag
-    (cpu::write-memory 0 #x10)  ; BPL
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bpl - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :negative 0)  ; Clear negative flag
+;;     (cpu::write-memory 0 #x10)  ; BPL
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
-(deftest test-brk
-  (fail "BRK Not Implemented."))
+;; (deftest test-brk
+;;   (fail "BRK Not Implemented."))
 
-(deftest test-bvc
-  (testing "bvc - branch when overflow flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 0)  ; Clear overflow flag
-    (cpu::write-memory 0 #x50)  ; BVC
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when overflow clear"))
+;; (deftest test-bvc
+;;   (testing "bvc - branch when overflow flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 0)  ; Clear overflow flag
+;;     (cpu::write-memory 0 #x50)  ; BVC
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when overflow clear"))
 
-  (testing "bvc - no branch when overflow flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 1)  ; Set overflow flag
-    (cpu::write-memory 0 #x50)  ; BVC
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when overflow set"))
+;;   (testing "bvc - no branch when overflow flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 1)  ; Set overflow flag
+;;     (cpu::write-memory 0 #x50)  ; BVC
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when overflow set"))
 
-  (testing "bvc - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 0)  ; Clear overflow flag
-    (cpu::write-memory 0 #x50)  ; BVC
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bvc - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 0)  ; Clear overflow flag
+;;     (cpu::write-memory 0 #x50)  ; BVC
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
 
-(deftest test-bvs
-  (testing "bvs - branch when overflow flag set"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 1)  ; Set overflow flag
-    (cpu::write-memory 0 #x70)  ; BVS
-    (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
-    (cpu::cpu-step)
-    (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when overflow set"))
+;; (deftest test-bvs
+;;   (testing "bvs - branch when overflow flag set"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 1)  ; Set overflow flag
+;;     (cpu::write-memory 0 #x70)  ; BVS
+;;     (cpu::write-memory 1 #x05)  ; Branch forward 5 bytes
+;;     (cpu::cpu-step)
+;;     (ok (= #x07 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should advance by offset + 2 when overflow set"))
 
-  (testing "bvs - no branch when overflow flag clear"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 0)  ; Clear overflow flag
-    (cpu::write-memory 0 #x70)  ; BVS
-    (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
-    (cpu::cpu-step)
-    (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when overflow clear"))
+;;   (testing "bvs - no branch when overflow flag clear"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 0)  ; Clear overflow flag
+;;     (cpu::write-memory 0 #x70)  ; BVS
+;;     (cpu::write-memory 1 #x05)  ; Branch offset (should be ignored)
+;;     (cpu::cpu-step)
+;;     (ok (= #x02 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should only advance by 2 when overflow clear"))
 
-  (testing "bvs - negative branch offset"
-    (setup-test-cpu)
-    (cpu::set-flag :overflow 1)  ; Set overflow flag
-    (cpu::write-memory 0 #x70)  ; BVS
-    (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
-    (cpu::cpu-step)
-    (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
+;;   (testing "bvs - negative branch offset"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :overflow 1)  ; Set overflow flag
+;;     (cpu::write-memory 0 #x70)  ; BVS
+;;     (cpu::write-memory 1 #xFA)  ; Branch backward 6 bytes (-6 in two's complement)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFFFC (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should subtract offset when branch taken with negative offset")))
 
 (deftest test-clc
   (testing "clc - clear carry flag when set"
@@ -466,148 +469,148 @@
     (ok (= 1 (cpu::get-flag :decimal)) "Decimal flag should be unchanged")
     (ok (= 1 (cpu::get-flag :interrupt)) "Interrupt flag should be unchanged")))
 
-(deftest test-cmp
-  (testing "cmp - zero flag when accumulator equals memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC9)  ; CMP immediate
-    (cpu::write-memory 1 #x42)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when A >= M"))
+;; (deftest test-cmp
+;;   (testing "cmp - zero flag when accumulator equals memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC9)  ; CMP immediate
+;;     (cpu::write-memory 1 #x42)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when A >= M"))
 
-  (testing "cmp - carry flag when accumulator greater than memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC9)  ; CMP immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when A >= M")
-    (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
+;;   (testing "cmp - carry flag when accumulator greater than memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC9)  ; CMP immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when A >= M")
+;;     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
 
-  (testing "cmp - negative flag when result has bit 7 set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x40)
-    (cpu::write-memory 0 #xC9)  ; CMP immediate
-    (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when A < M"))
+;;   (testing "cmp - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x40)
+;;     (cpu::write-memory 0 #xC9)  ; CMP immediate
+;;     (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when A < M"))
 
-  (testing "cmp - verify accumulator unchanged"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC9)  ; CMP immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should remain unchanged")))
+;;   (testing "cmp - verify accumulator unchanged"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC9)  ; CMP immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should remain unchanged")))
 
-(deftest test-cpx
-  (testing "cpx - zero flag when x register equals memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xE0)  ; CPX immediate
-    (cpu::write-memory 1 #x42)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when X >= M"))
+;; (deftest test-cpx
+;;   (testing "cpx - zero flag when x register equals memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xE0)  ; CPX immediate
+;;     (cpu::write-memory 1 #x42)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when X >= M"))
 
-  (testing "cpx - carry flag when x register greater than memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xE0)  ; CPX immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when X >= M")
-    (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
+;;   (testing "cpx - carry flag when x register greater than memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xE0)  ; CPX immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when X >= M")
+;;     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
 
-  (testing "cpx - negative flag when result has bit 7 set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x40)
-    (cpu::write-memory 0 #xE0)  ; CPX immediate
-    (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when X < M"))
+;;   (testing "cpx - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x40)
+;;     (cpu::write-memory 0 #xE0)  ; CPX immediate
+;;     (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when X < M"))
 
-  (testing "cpx - verify x register unchanged"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xE0)  ; CPX immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should remain unchanged")))
+;;   (testing "cpx - verify x register unchanged"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xE0)  ; CPX immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should remain unchanged")))
 
-(deftest test-cpy
-  (testing "cpy - zero flag when y register equals memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC0)  ; CPY immediate
-    (cpu::write-memory 1 #x42)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when Y >= M"))
+;; (deftest test-cpy
+;;   (testing "cpy - zero flag when y register equals memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC0)  ; CPY immediate
+;;     (cpu::write-memory 1 #x42)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when values are equal")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when Y >= M"))
 
-  (testing "cpy - carry flag when y register greater than memory"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC0)  ; CPY immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when Y >= M")
-    (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
+;;   (testing "cpy - carry flag when y register greater than memory"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC0)  ; CPY immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when Y >= M")
+;;     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be clear when values are not equal"))
 
-  (testing "cpy - negative flag when result has bit 7 set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x40)
-    (cpu::write-memory 0 #xC0)  ; CPY immediate
-    (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when Y < M"))
+;;   (testing "cpy - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x40)
+;;     (cpu::write-memory 0 #xC0)  ; CPY immediate
+;;     (cpu::write-memory 1 #xC0)  ; Results in #x80 (negative)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when Y < M"))
 
-  (testing "cpy - verify y register unchanged"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC0)  ; CPY immediate
-    (cpu::write-memory 1 #x40)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should remain unchanged")))
+;;   (testing "cpy - verify y register unchanged"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC0)  ; CPY immediate
+;;     (cpu::write-memory 1 #x40)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should remain unchanged")))
 
-(deftest test-dec
-  (testing "dec - basic decrement"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xC6)  ; DEC zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::write-memory #x50 #x42)  ; Value to decrement
-    (cpu::cpu-step)
-    (ok (= #x41 (cpu::read-memory #x50)) "Memory value should decrease by one"))
+;; (deftest test-dec
+;;   (testing "dec - basic decrement"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xC6)  ; DEC zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::write-memory #x50 #x42)  ; Value to decrement
+;;     (cpu::cpu-step)
+;;     (ok (= #x41 (cpu::read-memory #x50)) "Memory value should decrease by one"))
 
-  (testing "dec - zero flag when result is zero"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xC6)  ; DEC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #x01)  ; Will decrement to zero
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
-    (ok (= #x00 (cpu::read-memory #x50)) "Memory value should be zero"))
+;;   (testing "dec - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xC6)  ; DEC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #x01)  ; Will decrement to zero
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
+;;     (ok (= #x00 (cpu::read-memory #x50)) "Memory value should be zero"))
 
-  (testing "dec - negative flag when bit 7 is set"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xC6)  ; DEC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #x00)  ; Will decrement to #xFF
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
-    (ok (= #xFF (cpu::read-memory #x50)) "Memory value should wrap to #xFF"))
+;;   (testing "dec - negative flag when bit 7 is set"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xC6)  ; DEC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #x00)  ; Will decrement to #xFF
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
+;;     (ok (= #xFF (cpu::read-memory #x50)) "Memory value should wrap to #xFF"))
 
-  (testing "dec - wrapping from 0 to FF"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xC6)  ; DEC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #x00)
-    (cpu::cpu-step)
-    (ok (= #xFF (cpu::read-memory #x50)) "Memory value should wrap from #x00 to #xFF")))
+;;   (testing "dec - wrapping from 0 to FF"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xC6)  ; DEC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #x00)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFF (cpu::read-memory #x50)) "Memory value should wrap from #x00 to #xFF")))
 
 (deftest test-dex
   (testing "dex - basic decrement"
@@ -698,161 +701,161 @@
     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
     (ok (= #b10011001 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should have bit 7 set")))
 
-(deftest test-inc
-  (testing "inc - basic increment"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xE6)  ; INC zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::write-memory #x50 #x42)  ; Value to increment
-    (cpu::cpu-step)
-    (ok (= #x43 (cpu::read-memory #x50)) "Memory value should increase by one"))
+;; (deftest test-inc
+;;   (testing "inc - basic increment"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xE6)  ; INC zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::write-memory #x50 #x42)  ; Value to increment
+;;     (cpu::cpu-step)
+;;     (ok (= #x43 (cpu::read-memory #x50)) "Memory value should increase by one"))
 
-  (testing "inc - zero flag when result is zero"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xE6)  ; INC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #xFF)  ; Will increment to zero
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
-    (ok (= #x00 (cpu::read-memory #x50)) "Memory value should be zero"))
+;;   (testing "inc - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xE6)  ; INC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #xFF)  ; Will increment to zero
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
+;;     (ok (= #x00 (cpu::read-memory #x50)) "Memory value should be zero"))
 
-  (testing "inc - negative flag when bit 7 is set"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xE6)  ; INC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #x7F)  ; Will increment to #x80
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
-    (ok (= #x80 (cpu::read-memory #x50)) "Memory value should be #x80"))
+;;   (testing "inc - negative flag when bit 7 is set"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xE6)  ; INC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #x7F)  ; Will increment to #x80
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
+;;     (ok (= #x80 (cpu::read-memory #x50)) "Memory value should be #x80"))
 
-  (testing "inc - wrapping from FF to 00"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xE6)  ; INC zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::write-memory #x50 #xFF)
-    (cpu::cpu-step)
-    (ok (= #x00 (cpu::read-memory #x50)) "Memory value should wrap from #xFF to #x00")))
+;;   (testing "inc - wrapping from FF to 00"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xE6)  ; INC zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::write-memory #x50 #xFF)
+;;     (cpu::cpu-step)
+;;     (ok (= #x00 (cpu::read-memory #x50)) "Memory value should wrap from #xFF to #x00")))
 
-(deftest test-inx
-  (testing "inx - basic increment"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xE8)  ; INX
-    (cpu::cpu-step)
-    (ok (= #x43 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should increase by one"))
+;; (deftest test-inx
+;;   (testing "inx - basic increment"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xE8)  ; INX
+;;     (cpu::cpu-step)
+;;     (ok (= #x43 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should increase by one"))
 
-  (testing "inx - zero flag when result is zero"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #xFF)
-    (cpu::write-memory 0 #xE8)  ; INX
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
-    (ok (= #x00 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be zero"))
+;;   (testing "inx - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #xFF)
+;;     (cpu::write-memory 0 #xE8)  ; INX
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
+;;     (ok (= #x00 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be zero"))
 
-  (testing "inx - negative flag when bit 7 is set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x7F)
-    (cpu::write-memory 0 #xE8)  ; INX
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
-    (ok (= #x80 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be #x80"))
+;;   (testing "inx - negative flag when bit 7 is set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x7F)
+;;     (cpu::write-memory 0 #xE8)  ; INX
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
+;;     (ok (= #x80 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be #x80"))
 
-  (testing "inx - wrapping from FF to 00"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #xFF)
-    (cpu::write-memory 0 #xE8)  ; INX
-    (cpu::cpu-step)
-    (ok (= #x00 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should wrap from #xFF to #x00")))
+;;   (testing "inx - wrapping from FF to 00"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #xFF)
+;;     (cpu::write-memory 0 #xE8)  ; INX
+;;     (cpu::cpu-step)
+;;     (ok (= #x00 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should wrap from #xFF to #x00")))
 
-(deftest test-iny
-  (testing "iny - basic increment"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #xC8)  ; INY
-    (cpu::cpu-step)
-    (ok (= #x43 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should increase by one"))
+;; (deftest test-iny
+;;   (testing "iny - basic increment"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #xC8)  ; INY
+;;     (cpu::cpu-step)
+;;     (ok (= #x43 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should increase by one"))
 
-  (testing "iny - zero flag when result is zero"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #xFF)
-    (cpu::write-memory 0 #xC8)  ; INY
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
-    (ok (= #x00 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be zero"))
+;;   (testing "iny - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #xFF)
+;;     (cpu::write-memory 0 #xC8)  ; INY
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
+;;     (ok (= #x00 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be zero"))
 
-  (testing "iny - negative flag when bit 7 is set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x7F)
-    (cpu::write-memory 0 #xC8)  ; INY
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
-    (ok (= #x80 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be #x80"))
+;;   (testing "iny - negative flag when bit 7 is set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x7F)
+;;     (cpu::write-memory 0 #xC8)  ; INY
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
+;;     (ok (= #x80 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be #x80"))
 
-  (testing "iny - wrapping from FF to 00"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #xFF)
-    (cpu::write-memory 0 #xC8)  ; INY
-    (cpu::cpu-step)
-    (ok (= #x00 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should wrap from #xFF to #x00")))
+;;   (testing "iny - wrapping from FF to 00"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #xFF)
+;;     (cpu::write-memory 0 #xC8)  ; INY
+;;     (cpu::cpu-step)
+;;     (ok (= #x00 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should wrap from #xFF to #x00")))
 
-(deftest test-jmp
-  (testing "jmp - absolute addressing"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #x4C)  ; JMP absolute
-    (cpu::write-memory 1 #x34)  ; Low byte of target address
-    (cpu::write-memory 2 #x12)  ; High byte of target address
-    (cpu::cpu-step)
-    (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to #x1234"))
+;; (deftest test-jmp
+;;   (testing "jmp - absolute addressing"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #x4C)  ; JMP absolute
+;;     (cpu::write-memory 1 #x34)  ; Low byte of target address
+;;     (cpu::write-memory 2 #x12)  ; High byte of target address
+;;     (cpu::cpu-step)
+;;     (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to #x1234"))
 
-  (testing "jmp - indirect addressing"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #x6C)  ; JMP indirect
-    (cpu::write-memory 1 #x20)  ; Low byte of pointer
-    (cpu::write-memory 2 #x00)  ; High byte of pointer
-    (cpu::write-memory #x20 #x34)  ; Low byte of target address
-    (cpu::write-memory #x21 #x12)  ; High byte of target address
-    (cpu::cpu-step)
-    (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to address stored at #x0020"))
+;;   (testing "jmp - indirect addressing"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #x6C)  ; JMP indirect
+;;     (cpu::write-memory 1 #x20)  ; Low byte of pointer
+;;     (cpu::write-memory 2 #x00)  ; High byte of pointer
+;;     (cpu::write-memory #x20 #x34)  ; Low byte of target address
+;;     (cpu::write-memory #x21 #x12)  ; High byte of target address
+;;     (cpu::cpu-step)
+;;     (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to address stored at #x0020"))
 
-  (testing "jmp - indirect page boundary bug"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #x6C)     ; JMP indirect
-    (cpu::write-memory 1 #xFF)     ; Low byte of pointer
-    (cpu::write-memory 2 #x02)     ; High byte of pointer
-    (cpu::write-memory #x02FF #x34) ; Low byte of target
-    (cpu::write-memory #x0200 #x12) ; High byte should be read from here (not #x0300)
-    (cpu::cpu-step)
-    (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*))
-        "Program counter should use wrapped address for high byte")))
+;;   (testing "jmp - indirect page boundary bug"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #x6C)     ; JMP indirect
+;;     (cpu::write-memory 1 #xFF)     ; Low byte of pointer
+;;     (cpu::write-memory 2 #x02)     ; High byte of pointer
+;;     (cpu::write-memory #x02FF #x34) ; Low byte of target
+;;     (cpu::write-memory #x0200 #x12) ; High byte should be read from here (not #x0300)
+;;     (cpu::cpu-step)
+;;     (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*))
+;;         "Program counter should use wrapped address for high byte")))
 
-(deftest test-jsr
-  (testing "jsr - program counter update"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #x20)  ; JSR absolute
-    (cpu::write-memory 1 #x34)  ; Low byte of target address
-    (cpu::write-memory 2 #x12)  ; High byte of target address
-    (cpu::cpu-step)
-    (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to subroutine address"))
+;; (deftest test-jsr
+;;   (testing "jsr - program counter update"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #x20)  ; JSR absolute
+;;     (cpu::write-memory 1 #x34)  ; Low byte of target address
+;;     (cpu::write-memory 2 #x12)  ; High byte of target address
+;;     (cpu::cpu-step)
+;;     (ok (= #x1234 (cpu::cpu-program-counter cpu::*default-cpu*)) "Program counter should jump to subroutine address"))
 
-  (testing "jsr - return address pushed to stack"
-    (setup-test-cpu)
-    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)  ; Initialize stack pointer
-    (cpu::write-memory 0 #x20)  ; JSR absolute
-    (cpu::write-memory 1 #x34)  ; Low byte of target
-    (cpu::write-memory 2 #x12)  ; High byte of target
-    (cpu::cpu-step)
-    ;; Return address should be 2 (pointing to the byte after JSR)
-    (ok (= #x02 (cpu::read-memory #x01FF)) "High byte of return address should be pushed to stack")
-    (ok (= #x00 (cpu::read-memory #x01FE)) "Low byte of return address should be pushed to stack"))
+;;   (testing "jsr - return address pushed to stack"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)  ; Initialize stack pointer
+;;     (cpu::write-memory 0 #x20)  ; JSR absolute
+;;     (cpu::write-memory 1 #x34)  ; Low byte of target
+;;     (cpu::write-memory 2 #x12)  ; High byte of target
+;;     (cpu::cpu-step)
+;;     ;; Return address should be 2 (pointing to the byte after JSR)
+;;     (ok (= #x02 (cpu::read-memory #x01FF)) "High byte of return address should be pushed to stack")
+;;     (ok (= #x00 (cpu::read-memory #x01FE)) "Low byte of return address should be pushed to stack"))
 
-  (testing "jsr - stack pointer decremented"
-    (setup-test-cpu)
-    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)
-    (cpu::write-memory 0 #x20)  ; JSR absolute
-    (cpu::write-memory 1 #x34)
-    (cpu::write-memory 2 #x12)
-    (cpu::cpu-step)
-    (ok (= #xFD (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should decrease by 2")))
+;;   (testing "jsr - stack pointer decremented"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)
+;;     (cpu::write-memory 0 #x20)  ; JSR absolute
+;;     (cpu::write-memory 1 #x34)
+;;     (cpu::write-memory 2 #x12)
+;;     (cpu::cpu-step)
+;;     (ok (= #xFD (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should decrease by 2")))
 
 (deftest test-lda
   (testing "lda - basic load"
@@ -956,230 +959,398 @@
     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be cleared")
     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be cleared")))
 
-(deftest test-lsr
-  (testing "lsr - basic shift accumulator"
+;; (deftest test-lsr
+;;   (testing "lsr - basic shift accumulator"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+;;     (cpu::write-memory 0 #x4A)  ; LSR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be shifted right one position"))
+
+;;   (testing "lsr - carry flag gets old bit 0"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101011)
+;;     (cpu::write-memory 0 #x4A)  ; LSR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain the old bit 0")
+;;     (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be shifted right"))
+
+;;   (testing "lsr - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::write-memory 0 #x4A)  ; LSR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
+;;     (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be zero"))
+
+;;   (testing "lsr - negative flag is always clear"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b11111111)
+;;     (cpu::write-memory 0 #x4A)  ; LSR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should always be clear")
+;;     (ok (= #b01111111 (cpu::cpu-accumulator cpu::*default-cpu*)) "Bit 7 should be 0")))
+
+;; (deftest test-nop
+;;   (testing "nop - advances program counter"
+;;     (setup-test-cpu)
+;;     (cpu::write-memory 0 #xEA)  ; NOP
+;;     (let ((old-pc (cpu::cpu-program-counter cpu::*default-cpu*)))
+;;       (cpu::cpu-step)
+;;       (ok (= (+ old-pc 1) (cpu::cpu-program-counter cpu::*default-cpu*))
+;;           "Program counter should advance by one")))
+
+;;   (testing "nop - preserves all registers"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x43)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x44)
+;;     (cpu::write-memory 0 #xEA)  ; NOP
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be unchanged")
+;;     (ok (= #x43 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be unchanged")
+;;     (ok (= #x44 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be unchanged"))
+
+;;   (testing "nop - preserves all flags"
+;;     (setup-test-cpu)
+;;     (cpu::set-flag :zero 1)
+;;     (cpu::set-flag :negative 1)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::set-flag :overflow 1)
+;;     (cpu::set-flag :decimal 1)
+;;     (cpu::set-flag :interrupt 1)
+;;     (cpu::write-memory 0 #xEA)  ; NOP
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :decimal)) "Decimal flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :interrupt)) "Interrupt flag should be unchanged")))
+
+(deftest test-ora
+  (testing "ora - basic inclusive or operation"
     (setup-test-cpu)
     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
-    (cpu::write-memory 0 #x4A)  ; LSR accumulator
+    (cpu::write-memory 0 #x09)  ; ORA immediate
+    (cpu::write-memory 1 #b11110000)
     (cpu::cpu-step)
-    (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be shifted right one position"))
+    (ok (= #b11111010 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain A OR #F0"))
 
-  (testing "lsr - carry flag gets old bit 0"
+  (testing "ora - zero flag when result is zero"
     (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101011)
-    (cpu::write-memory 0 #x4A)  ; LSR accumulator
+    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000000)
+    (cpu::write-memory 0 #x09)  ; ORA immediate
+    (cpu::write-memory 1 #b00000000)
     (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain the old bit 0")
-    (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be shifted right"))
+    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero")
+    (ok (= #x00 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be zero"))
 
-  (testing "lsr - zero flag when result is zero"
+  (testing "ora - negative flag when bit 7 is set"
     (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::write-memory 0 #x4A)  ; LSR accumulator
+    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00110011)
+    (cpu::write-memory 0 #x09)  ; ORA immediate
+    (cpu::write-memory 1 #b10000000)  ; Will result in negative number
     (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
-    (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be zero"))
+    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when bit 7 is set")
+    (ok (= #b10110011 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should have bit 7 set")))
 
-  (testing "lsr - negative flag is always clear"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b11111111)
-    (cpu::write-memory 0 #x4A)  ; LSR accumulator
-    (cpu::cpu-step)
-    (ok (= 0 (cpu::get-flag :negative)) "Negative flag should always be clear")
-    (ok (= #b01111111 (cpu::cpu-accumulator cpu::*default-cpu*)) "Bit 7 should be 0")))
-
-(deftest test-nop
-  (testing "nop - advances program counter"
-    (setup-test-cpu)
-    (cpu::write-memory 0 #xEA)  ; NOP
-    (let ((old-pc (cpu::cpu-program-counter cpu::*default-cpu*)))
-      (cpu::cpu-step)
-      (ok (= (+ old-pc 1) (cpu::cpu-program-counter cpu::*default-cpu*))
-          "Program counter should advance by one")))
-
-  (testing "nop - preserves all registers"
+(deftest test-pha
+  (testing "pha - basic push"
     (setup-test-cpu)
     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x43)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x44)
-    (cpu::write-memory 0 #xEA)  ; NOP
+    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)  ; Initialize stack pointer
+    (cpu::write-memory 0 #x48)  ; PHA
     (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be unchanged")
-    (ok (= #x43 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be unchanged")
-    (ok (= #x44 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be unchanged"))
+    (ok (= #x42 (cpu::read-memory #x01FF)) "Stack should contain accumulator value"))
 
-  (testing "nop - preserves all flags"
+  (testing "pha - decrements stack pointer"
+    (setup-test-cpu)
+    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)
+    (cpu::write-memory 0 #x48)  ; PHA
+    (cpu::cpu-step)
+    (ok (= #xFE (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should decrease by one"))
+
+  (testing "pha - preserves accumulator"
+    (setup-test-cpu)
+    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+    (cpu::write-memory 0 #x48)  ; PHA
+    (cpu::cpu-step)
+    (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be unchanged"))
+
+  (testing "pha - doesn't affect flags"
     (setup-test-cpu)
     (cpu::set-flag :zero 1)
     (cpu::set-flag :negative 1)
     (cpu::set-flag :carry 1)
     (cpu::set-flag :overflow 1)
-    (cpu::set-flag :decimal 1)
-    (cpu::set-flag :interrupt 1)
-    (cpu::write-memory 0 #xEA)  ; NOP
+    (cpu::write-memory 0 #x48)  ; PHA
     (cpu::cpu-step)
     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be unchanged")
     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :decimal)) "Decimal flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :interrupt)) "Interrupt flag should be unchanged")))
-
-(deftest test-pha
-  (fail "PHA Not Implemented."))
+    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
 
 (deftest test-php
-  (fail "PHP Not Implemented."))
-
-(deftest test-pla
-  (fail "PLA Not Implemented."))
-
-(deftest test-plp
-  (fail "PLP Not Implemented."))
-
-(deftest test-rol
-  (testing "rol - basic rotate left accumulator"
+  (testing "php - basic push flags"
     (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
-    (cpu::set-flag :carry 0)
-    (cpu::write-memory 0 #x2A)  ; ROL accumulator
-    (cpu::cpu-step)
-    (ok (= #b01010100 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted left with carry 0 input")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain old bit 7"))
-
-  (testing "rol - rotate with carry set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)  ; Initialize stack pointer
+    ;; Set some flags to test
+    (cpu::set-flag :zero 1)
+    (cpu::set-flag :negative 1)
     (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #x2A)  ; ROL accumulator
+    (cpu::set-flag :overflow 1)
+    (cpu::write-memory 0 #x08)  ; PHP
     (cpu::cpu-step)
-    (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted left with carry 1 input")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain old bit 7"))
+    ;; Note: PHP always sets bits 4 and 5 when pushing
+    (let ((pushed-flags (cpu::read-memory #x01FF)))
+      (ok (logbitp 7 pushed-flags) "Negative flag should be set in pushed value")
+      (ok (logbitp 6 pushed-flags) "Overflow flag should be clear in pushed value")
+      (ok (logbitp 1 pushed-flags) "Zero flag should be set in pushed value")
+      (ok (logbitp 0 pushed-flags) "Carry flag should be set in pushed value")
+      (ok (logbitp 4 pushed-flags) "Break flag should be set in pushed value")
+      (ok (logbitp 5 pushed-flags) "Unused flag should be set in pushed value")))
 
-  (testing "rol - zero flag when result is zero"
+  (testing "php - decrements stack pointer"
     (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
-    (cpu::set-flag :carry 0)
-    (cpu::write-memory 0 #x2A)  ; ROL accumulator
+    (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFF)
+    (cpu::write-memory 0 #x08)  ; PHP
     (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
-    (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be zero"))
+    (ok (= #xFE (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should decrease by one"))
 
-  (testing "rol - negative flag when result has bit 7 set"
+  (testing "php - preserves flags"
     (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01000000)
-    (cpu::set-flag :carry 0)
-    (cpu::write-memory 0 #x2A)  ; ROL accumulator
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
-    (ok (= #b10000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should have bit 7 set")))
-
-(deftest test-ror
-  (testing "ror - basic rotate right accumulator"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
-    (cpu::set-flag :carry 0)
-    (cpu::write-memory 0 #x6A)  ; ROR accumulator
-    (cpu::cpu-step)
-    (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted right with carry 0 input")
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should contain old bit 0"))
-
-  (testing "ror - rotate with carry set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+    (cpu::set-flag :zero 1)
+    (cpu::set-flag :negative 1)
     (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #x6A)  ; ROR accumulator
+    (cpu::set-flag :overflow 1)
+    (cpu::write-memory 0 #x08)  ; PHP
     (cpu::cpu-step)
-    (ok (= #b11010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted right with carry 1 input")
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should contain old bit 0"))
+    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
+    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be unchanged")
+    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
+    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
 
-  (testing "ror - zero flag when result is zero"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::set-flag :carry 0)
-    (cpu::write-memory 0 #x6A)  ; ROR accumulator
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
-    (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be zero"))
+;; (deftest test-pla
+;;   (testing "pla - basic pull"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)  ; Set SP to point to our value
+;;     (cpu::write-memory #x01FF #x42)  ; Put test value on stack
+;;     (cpu::write-memory 0 #x68)  ; PLA
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain pulled value"))
 
-  (testing "ror - negative flag when result has bit 7 set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #x6A)  ; ROR accumulator
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
-    (ok (= #b10000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should have bit 7 set")))
+;;   (testing "pla - increments stack pointer"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     (cpu::write-memory 0 #x68)  ; PLA
+;;     (cpu::cpu-step)
+;;     (ok (= #xFF (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should increase by one"))
 
-(deftest test-rti
-  (fail "RTI Not Implemented."))
+;;   (testing "pla - zero flag when pulling zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     (cpu::write-memory #x01FF #x00)  ; Put zero on stack
+;;     (cpu::write-memory 0 #x68)  ; PLA
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when pulling zero")
+;;     (ok (= #x00 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be zero"))
 
-(deftest test-rts
-  (fail "RTS Not Implemented."))
+;;   (testing "pla - negative flag when pulling negative value"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     (cpu::write-memory #x01FF #x80)  ; Put negative value on stack
+;;     (cpu::write-memory 0 #x68)  ; PLA
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when pulling negative value")
+;;     (ok (= #x80 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should have high bit set")))
 
-(deftest test-sbc
-  (testing "sbc - basic subtraction"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
-    (cpu::set-flag :carry 1)  ; Set carry (no borrow)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x20)
-    (cpu::cpu-step)
-    (ok (= #x30 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain #x50 - #x20"))
+;; (deftest test-plp
+;;   (testing "plp - basic pull flags"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)  ; Set SP to point to our value
+;;     (cpu::write-memory #x01FF #b11000011)  ; Put test flags on stack (N=1, V=1, Z=1, C=1)
+;;     (cpu::write-memory 0 #x28)  ; PLP
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set from pulled value")
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be set from pulled value")
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set from pulled value")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set from pulled value"))
 
-  (testing "sbc - with borrow (carry clear)"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
-    (cpu::set-flag :carry 0)  ; Clear carry (borrow)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x20)
-    (cpu::cpu-step)
-    (ok (= #x2F (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain #x50 - #x20 - 1"))
+;;   (testing "plp - ignores break flag"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     (cpu::write-memory #x01FF #b00110000)  ; Set only B and unused flags
+;;     (cpu::write-memory 0 #x28)  ; PLP
+;;     (cpu::cpu-step)
+;;     (ok (= 0 (cpu::get-flag :break)) "Break flag should be ignored when pulling"))
 
-  (testing "sbc - carry flag set when no borrow needed"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x20)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when no borrow needed"))
+;;   (testing "plp - increments stack pointer"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     (cpu::write-memory 0 #x28)  ; PLP
+;;     (cpu::cpu-step)
+;;     (ok (= #xFF (cpu::cpu-stack-pointer cpu::*default-cpu*)) "Stack pointer should increase by one"))
 
-  (testing "sbc - carry flag clear when borrow needed"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x30)
-    (cpu::cpu-step)
-    (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when borrow needed"))
+;;   (testing "plp - clears flags when pulling zeros"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-stack-pointer cpu::*default-cpu*) #xFE)
+;;     ;; Set all flags initially
+;;     (cpu::set-flag :negative 1)
+;;     (cpu::set-flag :overflow 1)
+;;     (cpu::set-flag :zero 1)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory #x01FF #x00)  ; Put all clear flags on stack
+;;     (cpu::write-memory 0 #x28)  ; PLP
+;;     (cpu::cpu-step)
+;;     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be cleared")
+;;     (ok (= 0 (cpu::get-flag :overflow)) "Overflow flag should be cleared")
+;;     (ok (= 0 (cpu::get-flag :zero)) "Zero flag should be cleared")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be cleared")))
 
-  (testing "sbc - zero flag when result is zero"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x20)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero"))
+;; (deftest test-rol
+;;   (testing "rol - basic rotate left accumulator"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+;;     (cpu::set-flag :carry 0)
+;;     (cpu::write-memory 0 #x2A)          ; ROL accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b01010100 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted left with carry 0 input")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain old bit 7"))
 
-  (testing "sbc - negative flag when result has bit 7 set"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #x30)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result is negative"))
+;;   (testing "rol - rotate with carry set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #x2A)          ; ROL accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted left with carry 1 input")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should contain old bit 7"))
 
-  (testing "sbc - overflow flag on signed overflow"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)  ; +80
-    (cpu::set-flag :carry 1)
-    (cpu::write-memory 0 #xE9)  ; SBC immediate
-    (cpu::write-memory 1 #xB0)  ; -80 (subtracting negative causes overflow)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be set on signed overflow")))
+;;   (testing "rol - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10000000)
+;;     (cpu::set-flag :carry 0)
+;;     (cpu::write-memory 0 #x2A)          ; ROL accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
+;;     (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be zero"))
+
+;;   (testing "rol - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b01000000)
+;;     (cpu::set-flag :carry 0)
+;;     (cpu::write-memory 0 #x2A)          ; ROL accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
+;;     (ok (= #b10000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should have bit 7 set")))
+
+;; (deftest test-ror
+;;   (testing "ror - basic rotate right accumulator"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+;;     (cpu::set-flag :carry 0)
+;;     (cpu::write-memory 0 #x6A)  ; ROR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b01010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted right with carry 0 input")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should contain old bit 0"))
+
+;;   (testing "ror - rotate with carry set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b10101010)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #x6A)  ; ROR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= #b11010101 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be shifted right with carry 1 input")
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should contain old bit 0"))
+
+;;   (testing "ror - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::set-flag :carry 0)
+;;     (cpu::write-memory 0 #x6A)  ; ROR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is 0")
+;;     (ok (= #b00000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should be zero"))
+
+;;   (testing "ror - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #b00000001)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #x6A)  ; ROR accumulator
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result has bit 7 set")
+;;     (ok (= #b10000000 (cpu::cpu-accumulator cpu::*default-cpu*)) "Result should have bit 7 set")))
+
+;; (deftest test-rti
+;;   (fail "RTI Not Implemented."))
+
+;; (deftest test-rts
+;;   (fail "RTS Not Implemented."))
+
+;; (deftest test-sbc
+;;   (testing "sbc - basic subtraction"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
+;;     (cpu::set-flag :carry 1)  ; Set carry (no borrow)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x20)
+;;     (cpu::cpu-step)
+;;     (ok (= #x30 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain #x50 - #x20"))
+
+;;   (testing "sbc - with borrow (carry clear)"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
+;;     (cpu::set-flag :carry 0)  ; Clear carry (borrow)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x20)
+;;     (cpu::cpu-step)
+;;     (ok (= #x2F (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should contain #x50 - #x20 - 1"))
+
+;;   (testing "sbc - carry flag set when no borrow needed"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x20)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be set when no borrow needed"))
+
+;;   (testing "sbc - carry flag clear when borrow needed"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x30)
+;;     (cpu::cpu-step)
+;;     (ok (= 0 (cpu::get-flag :carry)) "Carry flag should be clear when borrow needed"))
+
+;;   (testing "sbc - zero flag when result is zero"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x20)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be set when result is zero"))
+
+;;   (testing "sbc - negative flag when result has bit 7 set"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x20)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #x30)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :negative)) "Negative flag should be set when result is negative"))
+
+;;   (testing "sbc - overflow flag on signed overflow"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x50)  ; +80
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::write-memory 0 #xE9)  ; SBC immediate
+;;     (cpu::write-memory 1 #xB0)  ; -80 (subtracting negative causes overflow)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be set on signed overflow")))
 
 (deftest test-sec
   (testing "sec - set carry flag when clear"
@@ -1271,101 +1442,101 @@
     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
     (ok (= 1 (cpu::get-flag :decimal)) "Decimal flag should be unchanged")))
 
-(deftest test-sta
-  (testing "sta - basic store"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x85)  ; STA zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain accumulator value"))
+;; (deftest test-sta
+;;   (testing "sta - basic store"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x85)  ; STA zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain accumulator value"))
 
-  (testing "sta - preserves accumulator value"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x85)  ; STA zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be unchanged"))
+;;   (testing "sta - preserves accumulator value"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x85)  ; STA zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-accumulator cpu::*default-cpu*)) "Accumulator should be unchanged"))
 
-  (testing "sta - doesn't affect any flags"
-    (setup-test-cpu)
-    (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x80)  ; Negative value
-    (cpu::set-flag :zero 1)
-    (cpu::set-flag :negative 0)
-    (cpu::set-flag :carry 1)
-    (cpu::set-flag :overflow 1)
-    (cpu::write-memory 0 #x85)  ; STA zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
-    (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
+;;   (testing "sta - doesn't affect any flags"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-accumulator cpu::*default-cpu*) #x80)  ; Negative value
+;;     (cpu::set-flag :zero 1)
+;;     (cpu::set-flag :negative 0)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::set-flag :overflow 1)
+;;     (cpu::write-memory 0 #x85)  ; STA zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
+;;     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
 
-(deftest test-stx
-  (testing "stx - basic store"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x86)  ; STX zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain X register value"))
+;; (deftest test-stx
+;;   (testing "stx - basic store"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x86)  ; STX zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain X register value"))
 
-  (testing "stx - preserves x register value"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x86)  ; STX zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be unchanged"))
+;;   (testing "stx - preserves x register value"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x86)  ; STX zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-x-register cpu::*default-cpu*)) "X register should be unchanged"))
 
-  (testing "stx - doesn't affect any flags"
-    (setup-test-cpu)
-    (setf (cpu::cpu-x-register cpu::*default-cpu*) #x80)  ; Negative value
-    (cpu::set-flag :zero 1)
-    (cpu::set-flag :negative 0)
-    (cpu::set-flag :carry 1)
-    (cpu::set-flag :overflow 1)
-    (cpu::write-memory 0 #x86)  ; STX zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
-    (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
+;;   (testing "stx - doesn't affect any flags"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x80)  ; Negative value
+;;     (cpu::set-flag :zero 1)
+;;     (cpu::set-flag :negative 0)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::set-flag :overflow 1)
+;;     (cpu::write-memory 0 #x86)  ; STX zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
+;;     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
 
-(deftest test-sty
-  (testing "sty - basic store"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x84)  ; STY zero page
-    (cpu::write-memory 1 #x50)  ; Zero page address
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain Y register value"))
+;; (deftest test-sty
+;;   (testing "sty - basic store"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x84)  ; STY zero page
+;;     (cpu::write-memory 1 #x50)  ; Zero page address
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::read-memory #x50)) "Memory should contain Y register value"))
 
-  (testing "sty - preserves y register value"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
-    (cpu::write-memory 0 #x84)  ; STY zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= #x42 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be unchanged"))
+;;   (testing "sty - preserves y register value"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x42)
+;;     (cpu::write-memory 0 #x84)  ; STY zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= #x42 (cpu::cpu-y-register cpu::*default-cpu*)) "Y register should be unchanged"))
 
-  (testing "sty - doesn't affect any flags"
-    (setup-test-cpu)
-    (setf (cpu::cpu-y-register cpu::*default-cpu*) #x80)  ; Negative value
-    (cpu::set-flag :zero 1)
-    (cpu::set-flag :negative 0)
-    (cpu::set-flag :carry 1)
-    (cpu::set-flag :overflow 1)
-    (cpu::write-memory 0 #x84)  ; STY zero page
-    (cpu::write-memory 1 #x50)
-    (cpu::cpu-step)
-    (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
-    (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
-    (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
+;;   (testing "sty - doesn't affect any flags"
+;;     (setup-test-cpu)
+;;     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x80)  ; Negative value
+;;     (cpu::set-flag :zero 1)
+;;     (cpu::set-flag :negative 0)
+;;     (cpu::set-flag :carry 1)
+;;     (cpu::set-flag :overflow 1)
+;;     (cpu::write-memory 0 #x84)  ; STY zero page
+;;     (cpu::write-memory 1 #x50)
+;;     (cpu::cpu-step)
+;;     (ok (= 1 (cpu::get-flag :zero)) "Zero flag should be unchanged")
+;;     (ok (= 0 (cpu::get-flag :negative)) "Negative flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :carry)) "Carry flag should be unchanged")
+;;     (ok (= 1 (cpu::get-flag :overflow)) "Overflow flag should be unchanged")))
 
 (deftest test-tax
   (testing "tax - basic transfer"

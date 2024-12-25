@@ -18,7 +18,7 @@
   (testing "immediate addressing mode"
     (setup-test-memory)
     (cpu::write-memory 0 #x42)          ; Write test value at PC
-    (ok (= (cpu::immediate) #x42) "should read the value at PC")
+    (ok (= (cpu::read-memory (cpu::immediate)) #x42) "should read the value at PC")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))
 
 (deftest test-absolute-addressing
@@ -30,7 +30,7 @@
     (cpu::write-memory #x734 #x42)      ; Value at target address 0x0734
     (cpu::write-memory #x34 #xFF)       ; Wrong if high byte ignored
     (cpu::write-memory #x735 #xFF)      ; Wrong if off by one
-    (ok (= (cpu::absolute) #x42) "should read correct value using both address bytes")
+    (ok (= (cpu::read-memory (cpu::absolute)) #x42) "should read correct value using both address bytes")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 2) "should increment PC by 2")))
 
 (deftest test-zero-page
@@ -38,8 +38,9 @@
     (setup-test-memory)
     (cpu::write-memory 0 #x42)          ; Address in zero page
     (cpu::write-memory #x42 #x37)       ; Value at zero page address
-    (ok (= (cpu::zero-page) #x37) "should read correct value from zero page")
+    (ok (= (cpu::read-memory (cpu::zero-page)) #x37) "should read correct value from zero page")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))
+
 
 (deftest test-absolute-x
   (testing "absolute-x addressing mode - normal case"
@@ -50,7 +51,7 @@
     ;; Write test values
     (cpu::write-memory #x736 #x42)      ; Value at target (0x0734 + X)
     (cpu::write-memory #x36 #xFF)       ; Wrong if high byte ignored
-    (ok (= (cpu::absolute-x) #x42) "should read correct value using both address bytes")
+    (ok (= (cpu::read-memory (cpu::absolute-x)) #x42) "should read correct value using both address bytes")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 2) "should increment PC by 2"))
 
   (testing "absolute-x addressing mode - page boundary crossing"
@@ -61,7 +62,7 @@
     ;; Write test values
     (cpu::write-memory #x733 #x42)      ; Value at target (0x0634 + 0xFF)
     (cpu::write-memory #x33 #xFF)       ; Wrong if high byte ignored
-    (ok (= (cpu::absolute-x) #x42) "should read correct value when crossing page boundary")
+    (ok (= (cpu::read-memory (cpu::absolute-x)) #x42) "should read correct value when crossing page boundary")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 2) "should increment PC by 2")))
 
 (deftest test-absolute-y
@@ -73,7 +74,7 @@
     ;; Write test values
     (cpu::write-memory #x736 #x42)      ; Value at target (0x0734 + Y)
     (cpu::write-memory #x36 #xFF)       ; Wrong if high byte ignored
-    (ok (= (cpu::absolute-y) #x42) "should read correct value using both address bytes")
+    (ok (= (cpu::read-memory (cpu::absolute-y)) #x42) "should read correct value using both address bytes")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 2) "should increment PC by 2"))
 
   (testing "absolute-y addressing mode - page boundary crossing"
@@ -84,7 +85,7 @@
     ;; Write test values
     (cpu::write-memory #x733 #x42)      ; Value at target (0x0634 + 0xFF)
     (cpu::write-memory #x33 #xFF)       ; Wrong if high byte ignored
-    (ok (= (cpu::absolute-y) #x42) "should read correct value when crossing page boundary")
+    (ok (= (cpu::read-memory (cpu::absolute-y)) #X42) "should read correct value when crossing page boundary")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 2) "should increment PC by 2")))
 
 (deftest test-zero-page-x
@@ -93,7 +94,7 @@
     (setf (cpu::cpu-x-register cpu::*default-cpu*) #x02)
     (cpu::write-memory 0 #x42)          ; Zero page address
     (cpu::write-memory #x44 #x37)       ; Value at (zero page + X)
-    (ok (= (cpu::zero-page-x) #x37) "should read correct value from X-indexed zero page")
+    (ok (= (cpu::read-memory (cpu::zero-page-x)) #x37) "should read correct value from X-indexed zero page")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
 
   (testing "zero-page-x addressing mode - with wrap"
@@ -102,7 +103,7 @@
     (cpu::write-memory 0 #xFE)          ; Zero page address
     (cpu::write-memory #x02 #x37)       ; Value at wrapped address (0xFE + 0x04 = 0x102 -> 0x02)
     (cpu::write-memory #x102 #xFF)      ; Wrong value if no wrapping occurs
-    (ok (= (cpu::zero-page-x) #x37) "should read correct wrapped value from X-indexed zero page")
+    (ok (= (cpu::read-memory (cpu::zero-page-x)) #x37) "should read correct wrapped value from X-indexed zero page")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))
 
 (deftest test-zero-page-y
@@ -111,7 +112,7 @@
     (setf (cpu::cpu-y-register cpu::*default-cpu*) #x02)
     (cpu::write-memory 0 #x42)          ; Zero page address
     (cpu::write-memory #x44 #x37)       ; Value at (zero page + Y)
-    (ok (= (cpu::zero-page-y) #x37) "should read correct value from Y-indexed zero page")
+    (ok (= (cpu::read-memory (cpu::zero-page-y)) #x37) "should read correct value from Y-indexed zero page")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
 
   (testing "zero-page-y addressing mode - with wrap"
@@ -120,7 +121,7 @@
     (cpu::write-memory 0 #xFE)          ; Zero page address
     (cpu::write-memory #x02 #x37)       ; Value at wrapped address (0xFE + 0x04 = 0x102 -> 0x02)
     (cpu::write-memory #x102 #xFF)      ; Wrong value if no wrapping occurs
-    (ok (= (cpu::zero-page-y) #x37) "should read correct wrapped value from Y-indexed zero page")
+    (ok (= (cpu::read-memory (cpu::zero-page-y)) #x37) "should read correct wrapped value from Y-indexed zero page")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))
 
 (deftest test-indirect
@@ -151,7 +152,7 @@
     (cpu::write-memory #x734 #x42)      ; Expected address
     (cpu::write-memory #x34 #xFF)       ; Wrong if high byte ignored
     (cpu::write-memory #x735 #xFF)      ; Wrong if off by one
-    (ok (= (cpu::pre-indexed-indirect) #x42) "should read correct value using both address bytes")
+    (ok (= (cpu::read-memory (cpu::pre-indexed-indirect)) #x42) "should read correct value using both address bytes")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
 
   (testing "pre-indexed-indirect addressing mode with zero-page wrapping"
@@ -167,7 +168,7 @@
     (cpu::write-memory #x734 #x42)      ; Expected address
     (cpu::write-memory #x141 #xFF)      ; Wrong if no wrapping occurs
     (cpu::write-memory #x142 #xFF)      ; Wrong if no wrapping occurs
-    (ok (= (cpu::pre-indexed-indirect) #x42) "should wrap within zero page and read correct value")
+    (ok (= (cpu::read-memory (cpu::pre-indexed-indirect)) #x42) "should wrap within zero page and read correct value")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
 
   (testing "pre-indexed-indirect addressing mode with zero-page boundary read"
@@ -181,7 +182,7 @@
     (cpu::write-memory #x00 #x07)       ; High byte wraps to start of zero page
     ;; Write test value
     (cpu::write-memory #x734 #x42)      ; Expected address
-    (ok (= (cpu::pre-indexed-indirect) #x42) "should correctly read address bytes across zero page boundary")
+    (ok (= (cpu::read-memory (cpu::pre-indexed-indirect)) #x42) "should correctly read address bytes across zero page boundary")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x101) "should increment PC by 1")) )
 
 (deftest test-post-indexed-indirect
@@ -197,7 +198,7 @@
     (cpu::write-memory #x736 #x42)      ; Expected address (0x0734 + 2)
     (cpu::write-memory #x36 #xFF)       ; Wrong if high byte ignored
     (cpu::write-memory #x735 #xFF)      ; Wrong if off by one
-    (ok (= (cpu::post-indexed-indirect) #x42) "should read correct value using both address bytes")
+    (ok (= (cpu::read-memory (cpu::post-indexed-indirect)) #x42) "should read correct value using both address bytes")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
 
   (testing "post-indexed-indirect addressing mode with page boundary crossing"
@@ -210,7 +211,7 @@
     (cpu::write-memory #x43 #x07)       ; High byte of base address
     ;; Write test value at page-crossed address
     (cpu::write-memory #x801 #x42)      ; Expected address (0x07FF + 2)
-    (ok (= (cpu::post-indexed-indirect) #x42) "should read correct value after page crossing")
+    (ok (= (cpu::read-memory (cpu::post-indexed-indirect)) #x42) "should read correct value after page crossing")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))
 
 (deftest test-relative
@@ -218,7 +219,7 @@
     (setup-test-memory)
     ;; Test maximum positive offset
     (cpu::write-memory 0 #x7F)          ; +127 (maximum positive)
-    (ok (= (cpu::relative) #x7F) "should handle maximum positive offset (+127)")
+    (ok (= (cpu::read-memory (cpu::relative)) #x7F) "should handle maximum positive offset (+127)")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")
 
     (setup-test-memory)
