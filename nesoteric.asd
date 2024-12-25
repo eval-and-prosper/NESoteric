@@ -21,5 +21,6 @@
   :components ((:module "tests"
                 :components
                 ((:file "main")
-                 (:file "instructions")))) :description "Test system for nesoteric"
+                 (:file "instructions")
+                 (:file "addressing")))) :description "Test system for nesoteric"
   :perform (test-op (op c) (symbol-call :rove :run c)))
