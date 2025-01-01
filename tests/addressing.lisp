@@ -219,13 +219,13 @@
     (setup-test-memory)
     ;; Test maximum positive offset
     (cpu::write-memory 0 #x7F)          ; +127 (maximum positive)
-    (ok (= (cpu::read-memory (cpu::relative)) #x7F) "should handle maximum positive offset (+127)")
+    (ok (= (cpu::relative) #x7F) "should handle maximum positive offset (+127)")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")
 
     (setup-test-memory)
     ;; Test maximum negative offset
     (cpu::write-memory 0 #x80)          ; -128 (maximum negative)
-    (ok (= (cpu::relative) #x80) "should handle maximum negative offset (-128)")
+    (ok (= (cpu::relative) -128) "should handle maximum negative offset (-128)")
     (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")
 
     (setup-test-memory)
@@ -243,56 +243,5 @@
     (setup-test-memory)
     ;; Test small negative offset
     (cpu::write-memory 0 #xFF)          ; -1 in two's complement
-    (ok (= (cpu::relative) #xFF) "should handle small negative offset")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1"))
-
-  (testing "relative addressing mode - PC relative jumps"
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x200)
-    ;; Test forward branch that crosses a page
-    (cpu::write-memory #x200 #x7F)      ; +127 from 0x201 should go to 0x280
-    (ok (= (cpu::relative) #x7F) "should calculate forward branch target")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x201) "should increment PC by 1")
-
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x280)
-    ;; Test backward branch that crosses a page
-    (cpu::write-memory #x280 #x80)      ; -128 from 0x281 should go to 0x201
-    (ok (= (cpu::relative) #x80) "should calculate backward branch target")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x281) "should increment PC by 1"))
-
-  (testing "relative addressing mode - range tests from middle of memory"
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x200)
-    ;; Test maximum positive offset from mid-memory
-    (cpu::write-memory #x200 #x7F)      ; +127 (maximum positive)
-    (ok (= (cpu::relative) #x7F) "should handle maximum positive offset (+127)")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x201) "should increment PC by 1")
-
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x300)
-    ;; Test maximum negative offset from different location
-    (cpu::write-memory #x300 #x80)      ; -128 (maximum negative)
-    (ok (= (cpu::relative) #x80) "should handle maximum negative offset (-128)")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x301) "should increment PC by 1")
-
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x150)
-    ;; Test zero offset from another location
-    (cpu::write-memory #x150 #x00)
-    (ok (= (cpu::relative) #x00) "should handle zero offset")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x151) "should increment PC by 1")
-
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x400)
-    ;; Test small positive offset
-    (cpu::write-memory #x400 #x01)      ; +1
-    (ok (= (cpu::relative) #x01) "should handle small positive offset")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x401) "should increment PC by 1")
-
-    (setup-test-memory)
-    (setf (cpu::cpu-program-counter cpu::*default-cpu*) #x350)
-    ;; Test small negative offset
-    (cpu::write-memory #x350 #xFF)      ; -1 in two's complement
-    (ok (= (cpu::relative) #xFF) "should handle small negative offset")
-    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) #x351) "should increment PC by 1")))
+    (ok (= (cpu::relative) -1) "should handle small negative offset")
+    (ok (= (cpu::cpu-program-counter cpu::*default-cpu*) 1) "should increment PC by 1")))

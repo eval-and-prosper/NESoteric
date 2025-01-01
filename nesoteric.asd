@@ -9,7 +9,9 @@
   :components ((:module "src"
                 :components
                 ((:file "main")
-                 (:file "cpu"))))
+                 (:file "cpu")
+                 (:file "cartridge")
+                 (:file "system"))))
   :description "NES emulator"
   :in-order-to ((test-op (test-op "nesoteric/tests"))))
 
