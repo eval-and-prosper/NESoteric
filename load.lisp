@@ -5,3 +5,9 @@
     (push p asdf:*central-registry*)
     (format t "Loading NESoteric system~%")
     (asdf:load-system :nesoteric)))
+
+(directory ".")
+
+(asdf:load-system :nesoteric)
+
+(asdf:clear-system :nesoteric)

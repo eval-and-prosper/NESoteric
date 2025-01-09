@@ -1,3 +1,4 @@
+;; TODO look into package-inferred-system
 (defsystem "nesoteric"
   :version "0.0.1"
   :author "Matt Renfro"
@@ -9,8 +10,11 @@
   :components ((:module "src"
                 :components
                 ((:file "main")
-                 (:file "cpu")
+                 (:file "bits-n-bytes")
+                 (:file "memory" :depends-on ("mapper"))
                  (:file "cartridge")
+                 (:file "mapper" :depends-on ("cartridge"))
+                 (:file "cpu")
                  (:file "system"))))
   :description "NES emulator"
   :in-order-to ((test-op (test-op "nesoteric/tests"))))
@@ -24,5 +28,6 @@
                 :components
                 ((:file "main")
                  (:file "instructions")
-                 (:file "addressing")))) :description "Test system for nesoteric"
+                 (:file "addressing")
+                 (:file "mapper")))) :description "Test system for nesoteric"
   :perform (test-op (op c) (symbol-call :rove :run c)))

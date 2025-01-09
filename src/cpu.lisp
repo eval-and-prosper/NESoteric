@@ -1,10 +1,29 @@
-(uiop:define-package nesoteric/cpu
+(uiop:define-package nesoteric.cpu
   (:use #:cl
-        #:alexandria)
-  (:import-from :alexandria
-                :define-constant))
+        #:nesoteric.bits-n-bytes
+        #:nesoteric.memory)
 
-(in-package #:nesoteric/cpu)
+  (:import-from :alexandria
+   :define-constant)
+
+  (:export
+
+   :cpu
+   :make-cpu
+   :cpu-accumulator
+   :cpu-x-register
+   :cpu-y-register
+   :cpu-program-counter
+   :cpu-stack-pointer
+   :cpu-status-register
+   :cpu-cycles
+   :cpu-retired-instructions
+   :print-cpu
+
+   :power-on
+   :cpu-step))
+
+(in-package #:nesoteric.cpu)
 
 ;; TODO not sure if we need to care about the unused status flag
 ;; TODO need to remember NES is little endian
@@ -12,44 +31,61 @@
 ;; with only the flags that were specified to the macro
 ;; TODO (if (logand #x80 mem) 1 0) anything that looks like this is bugged
 
-(deftype u8  () '(unsigned-byte 8))
-(deftype s8  () '(signed-byte 8))
-(deftype u16 () '(unsigned-byte 16))
-(deftype s16 () '(signed-byte 16))
-
 (defstruct cpu
-  (accumulator     0 :type u8)
-  (x-register      0 :type u8)
-  (y-register      0 :type u8)
-  (program-counter 0 :type u16)
-  (stack-pointer   0 :type u8)
-  (status-register 0 :type u8)
-  (ram (make-array #x800 :element-type 'u8 :initial-element 0)
-   :type (simple-array u8 (#x800))))
-
-(defparameter *default-cpu* (make-cpu))
+  (accumulator          0 :type u8)
+  (x-register           0 :type u8)
+  (y-register           0 :type u8)
+  (program-counter      0 :type u16)
+  (stack-pointer        0 :type u8)
+  (status-register      0 :type u8)
+  (cycles               0 :type fixnum)
+  (retired-instructions 0 :type fixnum))
 
 (defparameter *instructions* (make-array #x100
                                          ;; :element-type 'function
                                          :initial-element nil))
 
-(defun cpu-step (&optional (cpu *default-cpu*))
-  (let* ((opcode (read-memory (cpu-program-counter cpu)))
+(defun cpu-step (cpu memory &optional (log nil))
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((opcode (read-memory memory (cpu-program-counter cpu)))
          (inst (aref *instructions* opcode)))
     (if inst
         (progn
-          (inc-pc)
-          (funcall inst))
-        (format t "Invalid Opcode~%"))))
+          (when log
+            (fresh-line)
+            (format t "OP ~x~%" opcode))
+          (inc-pc cpu)
+          (funcall inst cpu memory))
+        (progn
+          ;; TODO probably get rid of this hack to continue after bad opcode
+          (inc-pc cpu)
+          (format t "Invalid Opcode ~X at ~X Cycle ~A Instruction Count ~a~%"
+                  opcode
+                  (cpu-program-counter cpu)
+                  (cpu-cycles cpu)
+                  (cpu-retired-instructions cpu))))))
 
-(defun print-cpu (&optional (cpu *default-cpu*))
+(defun print-cpu (cpu)
+  (declare (type cpu cpu))
   (fresh-line)
-  (format t "ACC ~A~%" (cpu-accumulator cpu))
-  (format t "X   ~A~%" (cpu-x-register cpu))
-  (format t "Y   ~A~%" (cpu-y-register cpu))
-  (format t "PC  ~A~%" (cpu-program-counter cpu))
-  (format t "SP  ~A~%" (cpu-stack-pointer cpu))
-  (format t "ST  ~b~%" (cpu-status-register cpu)))
+  ;; (format t "ACC ~X~%" (cpu-accumulator cpu))
+  ;; (format t "X   ~X~%" (cpu-x-register cpu))
+  ;; (format t "Y   ~X~%" (cpu-y-register cpu))
+  ;; (format t "PC  ~X~%" (cpu-program-counter cpu))
+  ;; (format t "SP  ~X~%" (cpu-stack-pointer cpu))
+  ;; (format t "ST  ~X~%" (cpu-status-register cpu))
+  ;; (format t "CYC ~A~%" (cpu-cycles cpu))
+  (format t "A ~2,'0X X ~2,'0X Y ~2,'0X PC ~2,'0X SP ~2,'0X ST ~2,'0X CYC ~A~%"
+          (cpu-accumulator cpu)
+          (cpu-x-register cpu)
+          (cpu-y-register cpu)
+          (cpu-program-counter cpu)
+          (cpu-stack-pointer cpu)
+          (cpu-status-register cpu)
+          (cpu-cycles cpu)))
+
 
 ;; (defun get-acc (&optional (cpu *default-cpu*))
 ;;   (cpu-accumulator cpu))
@@ -58,60 +94,42 @@
 ;; (defun get-y (&optional (cpu *default-cpu*))
 ;;   (cpu-y-register cpu))
 
-
-(defun set-acc (val &optional (cpu *default-cpu*))
+(defun set-acc (cpu val)
+  (declare (type cpu cpu))
   (setf (cpu-accumulator cpu) val))
-(defun set-x (val &optional (cpu *default-cpu*))
+(defun set-x (cpu val)
+  (declare (type cpu cpu))
   (setf (cpu-x-register cpu) val))
-(defun set-y (val &optional (cpu *default-cpu*))
+(defun set-y (cpu val)
+  (declare (type cpu cpu))
   (setf (cpu-y-register cpu) val))
-(defun set-pc (val &optional (cpu *default-cpu*))
+(defun set-pc (cpu val)
+  (declare (type cpu cpu))
   (setf (cpu-program-counter cpu) val))
 
-(defun inc-pc (&optional (amount 1) (cpu *default-cpu*))
+(defun inc-pc (cpu &optional (amount 1))
+  (declare (type cpu cpu))
   (setf (cpu-program-counter cpu) (+ amount (cpu-program-counter cpu))))
 
-(defun get-sp (&optional (cpu *default-cpu*))
+(defun get-sp (cpu)
   "Get current value of the stack pointer"
+  (declare (type cpu cpu))
   (cpu-stack-pointer cpu))
 
-(defun get-sp-addr (&optional (cpu *default-cpu*))
+(defun get-sp-addr (cpu)
   "Get actual address of the stack pointer"
+  (declare (type cpu cpu))
   (+ #x100 (cpu-stack-pointer cpu)))
 
-(defun dec-sp (&optional (amount 1) (cpu *default-cpu*))
- (setf (cpu-stack-pointer *default-cpu*)
+(defun dec-sp (cpu &optional (amount 1))
+  (declare (type cpu cpu))
+  (setf (cpu-stack-pointer cpu)
         (logand #xFF (- (cpu-stack-pointer cpu) amount))))
 
-(defun inc-sp (&optional (amount 1) (cpu *default-cpu*))
- (setf (cpu-stack-pointer *default-cpu*)
+(defun inc-sp (cpu &optional (amount 1))
+  (declare (type cpu cpu))
+ (setf (cpu-stack-pointer cpu)
         (logand #xFF (+ (cpu-stack-pointer cpu) amount))))
-
-
-(defun get-bit (byte position)
-  "Retrieve the bit at POSITION (0-7) in BYTE."
-  (declare (type (unsigned-byte 8) byte)
-           (type (integer 0 7) position)) ; Ensure position is in range
-  (ldb (byte 1 position) byte))
-
-(defun set-bit (byte position value)
-  "Set the bit at POSITION (0-7) in BYTE to VALUE (0 or 1)."
-  (declare (type (unsigned-byte 8) byte)
-           (type (integer 0 7) position)
-           (type (integer 0 1) value)
-           (optimize (debug 0) (speed 3))) ; Ensure value is 0 or 1
-  (if (zerop value)
-      (logand byte (lognot (ash 1 position))) ; Clear the bit
-      (logior byte (ash 1 position))))       ; Set the bit
-
-(defun u8-to-s8 (byte)
-  (if (>= byte 128)
-      (- byte 256)
-      (the s8 byte)))
-
-(defun print-bits (n size)
-  (format t (format nil "~~~D,'0B" size) (ldb (byte size 0) n))
-  (values))
 
 (define-constant +status-flags+
     '((:carry     . 0)
@@ -124,24 +142,27 @@
       (:negative  . 7))
   :test #'equal)
 
-(defun get-flag (flag-name &optional (cpu *default-cpu*))
+(defun get-flag (cpu flag-name)
   "Get the value of the keyword CPU status flag in +status-flags+"
+  (declare (type cpu cpu))
   (let ((bit-position (cdr (assoc flag-name +status-flags+))))
     (unless bit-position
       (error "Invalid flag name: ~A" flag-name))
     (get-bit (cpu-status-register cpu) bit-position)))
 
-(defun set-flag (flag-name value &optional (cpu *default-cpu*))
+(defun set-flag (cpu flag-name value)
   "Set the value of the keyword CPU status flag in +status-flags+"
+  (declare (type cpu cpu))
   (let ((bit-position (cdr (assoc flag-name +status-flags+))))
     (unless bit-position
       (error "Invalid flag name: ~A" flag-name))
     (setf (cpu-status-register cpu)
           (set-bit (cpu-status-register cpu) bit-position value))))
 
-(defun print-flags ()
+(defun print-flags (cpu)
+  (declare (type cpu cpu))
   (dolist (i +status-flags+)
-    (format t "~a ~a~%" (get-flag (car i)) (car i))))
+    (format t "~a ~a~%" (get-flag cpu (car i)) (car i))))
 
 ;; https://www.pagetable.com/?p=410
 ;; http://visual6502.org/JSSim/expert.html
@@ -160,83 +181,82 @@
 ;; | V        |             0 | unchanged   |
 ;; | N        |             0 | unchanged   |
 ;; TODO not sure but the missing bit should probably always be on
-(defun power-on (&optional (cpu *default-cpu*))
+(defun power-on (cpu memory)
   (setf (cpu-accumulator cpu) 0)
   (setf (cpu-x-register cpu) 0)
   (setf (cpu-y-register cpu) 0)
-  (setf (cpu-program-counter cpu) #xFFFC)
+  (setf (cpu-program-counter cpu)
+        (let ((b1 (read-memory memory #xFFFC))
+              (b2 (read-memory memory #xFFFD)))
+          (logior (ash b2 8) b1)))
   (setf (cpu-stack-pointer cpu) #xFD)
   (setf (cpu-status-register cpu) 4)
-  (setf (cpu-ram cpu) (make-array #x800
-                                  :element-type 'u8
-                                  :initial-element 0))
+  (setf (cpu-cycles cpu) 7)
+  ;; (setf (cpu-ram cpu) (make-array #x800
+  ;;                                 :element-type 'u8
+  ;;                                 :initial-element 0))
   t)
 
 ;; TODO figure out exactly how reset works
-(defun reset ()
-  (error "reset cpu not implemented"))
+(defun reset (cpu)
+  (error (format nil "reset cpu not implemented ~a" cpu)))
 
-(defparameter *op-codes* nil)
-
-;; ==============================================================================
+;; ============================================================================
 ;; Memory
-;; ==============================================================================
-;; | Address range | Size  | Device                                         |
-;; |---------------+-------+------------------------------------------------|
-;; | $0000–$07FF   | $0800 | 2 KB internal RAM                              |
-;; | $0800–$0FFF   | $0800 | Mirrors of $0000–$07FF                         |
-;; | $1000–$17FF   | $0800 |                                                |
-;; | $1800–$1FFF   | $0800 |                                                |
-;; | $2000–$2007   | $0008 | NES PPU registers                              |
-;; | $2008–$3FFF   | $1FF8 | Mirrors of $2000–$2007 (repeats every 8 bytes) |
-;; | $4000–$4017   | $0018 | NES APU and I/O registers                      |
-;; | $4018–$401F   | $0008 | APU and I/O normally disabled.                 |
-;; | $4020–$FFFF   | $BFE0 | Unmapped. Available for cartridge use.         |
+;; ============================================================================
 
-(defun print-memory (&optional (start 0) (count 0))
-  (if (> count 0)
-      (format t "~a~%" (subseq (cpu-ram *default-cpu*) start (+ start count)))
-      (dotimes (i #x0800)
-        (if (= 0 (mod i 38)) (format t "~%"))
-        (format t "~a " (read-memory i))
-        (if (= i #x07FF)
-            (format t "~%")))))
+;; (defun print-memory (cpu &optional (start 0) (count 0))
+;;   (if (> count 0)
+;;       (format t "~a~%" (subseq (cpu-ram cpu) start (+ start count)))
+;;       (dotimes (i #x0800)
+;;         (if (= 0 (mod i 38)) (format t "~%"))
+;;         (format t "~a " (read-memory cpu i))
+;;         (if (= i #x07FF)
+;;             (format t "~%")))))
 
 ;; TODO return type?
-(defun read-memory (address)
-  (declare (type u16 address))
-  (cond
-    ((< address #x2000)
-     (aref (cpu-ram *default-cpu*) (logand #x07FF address)))
-    ((< address #x4000)
-     (error "Reading PPU registers not yet implemented."))
-    ((< address #x4020)
-     (error "Reading APU registers not yet implemented."))
-    ;; don't check beyond #FFFF as address will throw error if not u16
-    ((<= address #xFFFF)
-     (error "Reading cartridge not yet implemented."))))
+;; (defun read-memory (cpu address)
+;;   (declare
+;;    (type cpu cpu)
+;;    (type u16 address))
+;;   (cond
+;;     ((< address #x2000)
+;;      (aref (cpu-ram cpu) (logand #x07FF address)))
+;;     ((< address #x4000)
+;;      (error "Reading PPU registers not yet implemented."))
+;;     ((< address #x4020)
+;;      (error "Reading APU registers not yet implemented."))
+;;     ;; don't check beyond #FFFF as address will throw error if not u16
+;;     ((<= address #xFFFF)
+;;      (error "Reading cartridge not yet implemented."))))
 
 ;; TODO replace redundant code with this function
-(defun read-memory-u16 (address)
-  (let ((mem1 (read-memory address))
-        (mem2 (read-memory (1+ address))))
-    (+ (ash mem2 8) mem1)))
+;; (defun read-memory-u16 (cpu address)
+;;   (declare
+;;    (type cpu cpu)
+;;    (type u16 address))
+;;   (let ((mem1 (read-memory cpu address))
+;;         (mem2 (read-memory cpu (1+ address))))
+;;     (+ (ash mem2 8) mem1)))
 
-(defun write-memory (address value)
-  (declare
-   (type u16 address)
-   (type u8 value))
-  (cond
-    ((< address #x2000)
-     (setf (aref (cpu-ram *default-cpu*)
-                 (logand #x07FF address)) value))
-    ((< address #x4000)
-     (error "Writing PPU registers not yet implemented."))
-    ((< address #x4020)
-     (error "Writing APU registers not yet implemented."))
-    ;; don't check beyond #FFFF as address will throw error if not u16
-    ((<= address #xFFFF)
-     (error "Writing cartridge not yet implemented."))))
+;; (defun write-memory (cpu address value)
+;;   (declare
+;;    (type cpu cpu)
+;;    (type u16 address)
+;;    (type u8 value))
+;;   (cond
+;;     ((< address #x2000)
+;;      (setf (aref (cpu-ram cpu)
+;;                  (logand #x07FF address)) value))
+;;     ((< address #x4000)
+;;      (error "Writing PPU registers not yet implemented."))
+;;     ((< address #x4020)
+;;      (error "Writing APU registers not yet implemented."))
+;;     ;; don't check beyond #FFFF as address will throw error if not u16
+;;     ((<= address #xFFFF)
+;;      (error "Writing cartridge not yet implemented."))))
+
+
 
 ;; ============================================================================
 ;; Addressing
@@ -245,199 +265,256 @@
 ;; all of these assume pc already points to the first byte
 (defun implied() nil)
 
-(defun immediate ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         ;; (mem (read-memory pc))
-         )
-    (inc-pc)
-    ;; mem
+(defun immediate (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory)
+   (ignore memory))
+  (let* ((pc (cpu-program-counter cpu)))
+    (inc-pc cpu)
     pc))
 
-(defun absolute ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (b1 (read-memory pc))
-         (b2 (read-memory (1+ pc)))
-         ;; (mem (read-memory (+ (ash b2 8) b1)))
+(defun absolute (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (b1 (read-memory memory pc))
+         (b2 (read-memory memory (1+ pc)))
          (addr (+ (ash b2 8) b1)))
-    (inc-pc 2)
-    ;; mem
+    (inc-pc cpu 2)
     addr))
 
-(defun zero-page ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (addr (read-memory pc))
-         ;; (mem (read-memory addr))
+(defun zero-page (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (addr (read-memory memory pc))
          )
-    (inc-pc)
-    ;; mem
-    addr))
-
-;; TODO check overflow
-(defun absolute-x ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (b1 (read-memory pc))
-         (b2 (read-memory (1+ pc)))
-         ;; (mem (read-memory (+ (ash b2 8)
-         ;;                      b1
-         ;;                      (cpu-x-register *default-cpu*))))
-         (addr (+ (ash b2 8) b1 (cpu-x-register *default-cpu*)))
-         )
-    (inc-pc 2)
-    ;; mem
+    (inc-pc cpu)
     addr))
 
 ;; TODO check overflow
-(defun absolute-y ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (b1 (read-memory pc))
-         (b2 (read-memory (1+ pc)))
-         ;; (mem (read-memory (+ (ash b2 8)
-         ;;                      b1
-         ;;                      (cpu-y-register *default-cpu*))))
-         (addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*)))
+(defun absolute-x (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (b1 (read-memory memory pc))
+         (b2 (read-memory memory (1+ pc)))
+         (addr (+ (ash b2 8) b1 (cpu-x-register cpu)))
          )
-    (inc-pc 2)
-    ;; mem
+    (inc-pc cpu 2)
+    addr))
+
+;; TODO check overflow
+(defun absolute-y (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (b1 (read-memory memory pc))
+         (b2 (read-memory memory (1+ pc)))
+         ;; TODO buggy as I forgot to wrap this with the logand causing bad number
+         ;; need to track down all the code like this and replace it
+         (addr (logand #xFF (+ (ash b2 8) b1 (cpu-y-register cpu))))
+         )
+    (inc-pc cpu 2)
     addr))
 
 ;; zero-page,x
-(defun zero-page-x ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (zp (read-memory pc))
-         ;; (mem (read-memory (logand #xFF (+ addr (cpu-x-register *default-cpu*)))))
-         (addr (logand #xFF (+ zp (cpu-x-register *default-cpu*)))))
-    (inc-pc)
+(defun zero-page-x (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (zp (read-memory memory pc))
+         ;; (mem (read-memory (logand #xFF (+ addr (cpu-x-register cpu)))))
+         (addr (logand #xFF (+ zp (cpu-x-register cpu)))))
+    (inc-pc cpu)
     ;; mem
     addr))
 
 ;; zero-page,y
-(defun zero-page-y ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (zp (read-memory pc))
-         ;; (mem (read-memory (logand #xFF (+ addr (cpu-y-register *default-cpu*)))))
-         (addr (logand #xFF (+ zp (cpu-y-register *default-cpu*)))))
-    (inc-pc)
+(defun zero-page-y (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (zp (read-memory memory pc))
+         ;; (mem (read-memory (logand #xFF (+ addr (cpu-y-register cpu)))))
+         (addr (logand #xFF (+ zp (cpu-y-register cpu)))))
+    (inc-pc cpu)
     ;; mem
     addr))
 
-(defun indirect ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (b1 (read-memory pc))
-         (b2 (read-memory (1+ pc)))
+(defun indirect (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (b1 (read-memory memory pc))
+         (b2 (read-memory memory (1+ pc)))
          (addr (+ (ash b2 8) b1))
-         (mem1 (read-memory addr))
-         (mem2 (read-memory (1+ addr))))
-    (inc-pc 2)
+         (mem1 (read-memory memory addr))
+         (mem2 (read-memory memory (1+ addr))))
+    (inc-pc cpu 2)
     (+ (ash mem2 8) mem1)))
 
-(defun indirect-bug ()
+(defun indirect-bug (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
   "When least significant address byte ends in #xFF it reads that value from XX00 instead of wrapping the high byte"
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (b1 (read-memory pc))
-         (b2 (read-memory (1+ pc)))
+  (let* ((pc (cpu-program-counter cpu))
+         (b1 (read-memory memory pc))
+         (b2 (read-memory memory (1+ pc)))
          (addr     (+ (ash b2 8) b1))
          (bug-addr (+ (ash b2 8) #x00))
          (bugged (if (= #xFF b1) t nil)))
-    (let ((mem1 (read-memory addr))
-          (mem2 (read-memory (if bugged
+    (let ((mem1 (read-memory memory addr))
+          (mem2 (read-memory memory (if bugged
                                  bug-addr
                                  (1+ addr)))))
-      (inc-pc 2)
+      (inc-pc cpu 2)
       (+ (ash mem2 8) mem1))))
 
 ;; (zero-page,x)
 ;; TODO no overflow?
-(defun pre-indexed-indirect ()
-  (declare (optimize (debug 3)))
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (op (logand #xFF (+ (read-memory pc) (cpu-x-register *default-cpu*))))
-         (b1 (read-memory op))
-         (b2 (read-memory (logand #xFF (1+ op))))
+(defun pre-indexed-indirect (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (op (logand #xFF (+ (read-memory memory pc) (cpu-x-register cpu))))
+         (b1 (read-memory memory op))
+         (b2 (read-memory memory (logand #xFF (1+ op))))
          (addr (+ (ash b2 8) b1)))
-    (inc-pc)
-    ;; (read-memory eff-addr)
+    (inc-pc cpu)
     addr))
 
 ;; (zero-page),y
 ;; TODO check overflow
-(defun post-indexed-indirect ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         (op (read-memory pc))
-         (b1 (read-memory op))
-         (b2 (read-memory (1+ op)))
-         (addr (+ (ash b2 8) b1 (cpu-y-register *default-cpu*))))
-    (inc-pc)
-    ;; (read-memory eff-addr)
+(defun post-indexed-indirect (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (op (read-memory memory pc))
+         (b1 (read-memory memory op))
+         (b2 (read-memory memory (1+ op)))
+         (addr (logand #xFF (+ (ash b2 8) b1 (cpu-y-register cpu)))))
+    (inc-pc cpu)
     addr))
 
-(defun relative ()
-  (let* ((pc (cpu-program-counter *default-cpu*))
-         ;; (b (read-memory pc))
-         (offset (u8-to-s8 (read-memory pc))))
-    (inc-pc)
+(defun relative (cpu memory)
+  (declare
+   (type cpu cpu)
+   (type memory memory))
+  (let* ((pc (cpu-program-counter cpu))
+         (offset (u8-to-s8 (read-memory memory pc))))
+    (inc-pc cpu)
     offset))
 
 ;; Should be a constant but it looks like that's impossible
 (defparameter +addressing-modes+
-  `((:implied nil)
-    (:accumulator nil)
-    (:relative ,#'relative)
-    (:immediate ,#'immediate)
-    (:absolute ,#'absolute)
-    (:zero-page ,#'zero-page)
-    (:absolute-x ,#'absolute-x)
-    (:absolute-y ,#'absolute-y)
-    (:zero-page-x ,#'zero-page-x)
-    (:zero-page-y ,#'zero-page-y)
-    (:indirect ,#'indirect)
+  `((:implied      nil)
+    (:accumulator  nil)
+    (:relative     ,#'relative)
+    (:immediate    ,#'immediate)
+    (:absolute     ,#'absolute)
+    (:zero-page    ,#'zero-page)
+    (:absolute-x   ,#'absolute-x)
+    (:absolute-y   ,#'absolute-y)
+    (:zero-page-x  ,#'zero-page-x)
+    (:zero-page-y  ,#'zero-page-y)
+    (:indirect     ,#'indirect)
     (:indirect-bug ,#'indirect-bug)
-    (:pre-indexed-indirect ,#'pre-indexed-indirect)
-    (:post-indexed-indirect ,#'post-indexed-indirect)))
+    (:indirect-x   ,#'pre-indexed-indirect)
+    (:indirect-y   ,#'post-indexed-indirect)
+    ;; (:pre-indexed-indirect ,#'pre-indexed-indirect)
+    ;; (:post-indexed-indirect ,#'post-indexed-indirect)
+    ))
 
 ;; =============================================================================
 ;; Instructions
 ;; =============================================================================
 
-(defun update-z-flag (value)
-  (set-flag :zero (if (zerop value) 1 0)))
+(defun update-z-flag (cpu value)
+  (set-flag cpu :zero (if (zerop value) 1 0)))
 
-(defun update-n-flag (value)
-  (set-flag :negative (get-bit value 7)))
+(defun update-n-flag (cpu value)
+  (set-flag cpu :negative (get-bit value 7)))
 
-(defun update-zn-flags (value)
-  (set-flag :zero (if (zerop value) 1 0))
-  (set-flag :negative (get-bit value 7)))
+(defun update-zn-flags (cpu value)
+  (set-flag cpu :zero (if (zerop value) 1 0))
+  (set-flag cpu :negative (get-bit value 7)))
+
+(defun update-cycles (cpu cycles)
+  (declare
+   (type fixnum cycles))
+  (incf (cpu-cycles cpu) cycles)
+  (incf (cpu-retired-instructions cpu)))
 
 (defun make-instruction (inst-fun inst-list)
   (dolist (inst inst-list)
-    (let* (;; (inst-fun #'addc)
-           (addr-mode (second (assoc (first inst) +addressing-modes+)))
-           (opcode (second inst)))
+    (let* ((addr-mode (second (assoc (first inst) +addressing-modes+)))
+           (opcode (second inst))
+           (bytes (third inst))
+           (cycles (fourth inst)))
       (when (aref *instructions* opcode)
         (format t "Redefining instruction: ~X" opcode))
       (setf (aref *instructions* opcode)
-            (if (or (eql :accumulator (first inst)) (eql :implied (first inst)))
-                (lambda ()
-                  (funcall inst-fun))
-                (lambda ()
-                  (let ((byte (funcall addr-mode)))
-                    (funcall inst-fun byte))))))))
+            (cond
+              ((or (eql :accumulator (first inst)))
+               (lambda (cpu memory)
+                 (declare (ignore memory))
+                 (funcall inst-fun cpu)
+                 (update-cycles cpu cycles)))
+
+              ((eql :implied (first inst))
+               (lambda (cpu memory)
+                 (funcall inst-fun cpu memory)
+                 (update-cycles cpu cycles)))
+
+              ((eql :relative (first inst))
+               (lambda (cpu memory)
+                 (let ((offset (funcall addr-mode cpu memory)))
+                   (funcall inst-fun cpu offset)
+                   (update-cycles cpu cycles))))
+
+              (t
+               (lambda (cpu memory)
+                 (when (null addr-mode) (error (format nil "ADDR ~a" addr-mode)))
+                 (let ((address (funcall addr-mode cpu memory)))
+                   (funcall inst-fun cpu memory address)
+                   (update-cycles cpu cycles)))))
+            ;; (if (or (eql :accumulator (first inst))
+            ;;         (eql :implied (first inst))
+            ;;         (eql :rel))
+            ;;     (lambda (cpu memory)
+            ;;       (funcall inst-fun cpu))
+            ;;     (lambda (cpu memory)
+            ;;       (let ((address (funcall addr-mode cpu memory)))
+            ;;         (funcall inst-fun cpu memory address))))
+            ))))
 
 ;; adc add with carry
 ;; A = A + memory + C
-(defun adc (address)
+(defun adc (cpu memory address)
   ;; (declare (type u8 mem))
-  (let* ((A (cpu-accumulator *default-cpu*))
-         (carry (get-flag :carry))
-         (mem (read-memory address))
+  (let* ((A (cpu-accumulator cpu))
+         (carry (get-flag cpu :carry))
+         (mem (read-memory memory address))
          (res (+ A mem carry)))
     (declare (type u8 A)
              (type bit carry))
 
-    (set-flag :carry (if (> res #xFF) 1 0))
+    (set-flag cpu :carry (if (> res #xFF) 1 0))
     (setf res (logand res #xFF))
 
-    (set-flag :zero (if (zerop res) 1 0))
+    (set-flag cpu :zero (if (zerop res) 1 0))
 
     ;; (result ^ A) & (result ^ memory) & $80
     ;; Formula detects overflow by checking sign changes:
@@ -445,13 +522,13 @@
     ;; ANDing the XORs will be 1 in bit 7 only if result differs from both inputs
     ;; Final & $80 isolates bit 7 (the sign bit)
     ;; We then shift to extract the bit and set the flag with it
-    (set-flag :overflow
+    (set-flag cpu :overflow
               (ash (logand (logxor res A)
                            (logxor res mem)
                            #x80)
                    -7))
-    (set-flag :negative (get-bit res 7))
-    (set-acc res)))
+    (set-flag cpu :negative (get-bit res 7))
+    (set-acc cpu res)))
 
 (make-instruction
  #'adc
@@ -478,11 +555,11 @@
 ;; Z result == 0
 ;; N result bit 7
 
-(defun inst-and (address)
-  (let* ((mem (read-memory address))
-        (result (logand mem (cpu-accumulator *default-cpu*))))
-    (update-zn-flags result)
-    (set-acc result)))
+(defun inst-and (cpu memory address)
+  (let* ((mem (read-memory memory address))
+        (result (logand mem (cpu-accumulator cpu))))
+    (update-zn-flags cpu result)
+    (set-acc cpu result)))
 
 (make-instruction
  #'inst-and
@@ -495,14 +572,14 @@
    (:indirect-x  #x21 2 6)
    (:indirect-y  #x31 2 5 :page-cross 1)))
 
-(defun asl (address)
-  (let* ((mem (read-memory address))
+(defun asl (cpu memory address)
+  (let* ((mem (read-memory memory address))
          ;; (carry (if (logand #x80 mem) 1 0))
          (carry (get-bit mem 7))
          (res (logand #xFF (ash mem 1))))
-    (set-flag :carry carry)
-    (update-zn-flags res)
-    (write-memory address res)))
+    (set-flag cpu :carry carry)
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'asl
@@ -511,94 +588,94 @@
    (:absolute    #x0E 3 6)
    (:absolute-x  #x1E 3 7)))
 
-(defun asl-a ()
-  (let* ((mem (cpu-accumulator *default-cpu*))
+(defun asl-a (cpu)
+  (let* ((mem (cpu-accumulator cpu))
          ;; (carry (if (logand #x80 mem) 1 0))
          (carry (get-bit mem 7))
          (res (logand #xFF (ash mem 1))))
-    (set-flag :carry carry)
-    (update-zn-flags res)
-    (setf (cpu-accumulator *default-cpu*) res)))
+    (set-flag cpu :carry carry)
+    (update-zn-flags cpu res)
+    (setf (cpu-accumulator cpu) res)))
 
 (make-instruction
  #'asl-a
  '((:accumulator #x0A 1 2)))
 
 
-(defun bcc (offset)
-  (let ((carry (get-flag :carry)))
+(defun bcc (cpu offset)
+  (let ((carry (get-flag cpu :carry)))
     (when (= carry 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bcc
  '((:relative #x90 2 2 :page-cross 1)))
 
-(defun bcs (offset)
-  (let ((carry (get-flag :carry)))
+(defun bcs (cpu offset)
+  (let ((carry (get-flag cpu :carry)))
     (when (> carry 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bcs
  '((:relative #xB0 2 2 :page-cross 1)))
 
-(defun beq (offset)
-  (let ((zero (get-flag :zero)))
+(defun beq (cpu offset)
+  (let ((zero (get-flag cpu :zero)))
     (when (> zero 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'beq
  '((:relative #xF0 2 2 :page-cross 1)))
 
 
-(defun inst-bit (address)
-  (let* ((mem (read-memory address))
-         (res (logand mem (cpu-accumulator *default-cpu*))))
-    (set-flag :overflow (if (> (logand #x40 mem) 0) 1 0))
-    (update-z-flag res)
-    (update-n-flag mem)))
+(defun inst-bit (cpu memory address)
+  (let* ((mem (read-memory memory address))
+         (res (logand mem (cpu-accumulator cpu))))
+    (set-flag cpu :overflow (if (> (logand #x40 mem) 0) 1 0))
+    (update-z-flag cpu res)
+    (update-n-flag cpu mem)))
 
 (make-instruction
  #'inst-bit
  '((:zero-page #x24 2 3)
    (:absolute  #x2C 3 4)))
 
-(defun bmi (offset)
-  (let ((neg (get-flag :negative)))
+(defun bmi (cpu offset)
+  (let ((neg (get-flag cpu :negative)))
     (when (> neg 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bmi
  '((:relative #x30 2 2 :page-cross 1)))
 
-(defun bne (offset)
-  (let ((zero (get-flag :zero)))
+(defun bne (cpu offset)
+  (let ((zero (get-flag cpu :zero)))
     (when (= zero 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bne
  '((:relative #xD0 2 2 :page-cross 1)))
 
-(defun bpl (offset)
-  (let ((neg (get-flag :negative)))
+(defun bpl (cpu offset)
+  (let ((neg (get-flag cpu :negative)))
     (when (= neg 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bpl
@@ -608,95 +685,99 @@
 ;; TODO Trigger an interrupt
 ;; TODO implement buggy behavior when NMI occurs at the same time
 ;; TODO need to implement cart to be able to read FFFE and FFFF
-(defun brk ()
+(defun brk (cpu memory)
   ;; push PC
-  (let ((pc (logand #xFFFF (- (cpu-program-counter *default-cpu*) 1))))
-    (write-memory (get-sp-addr) (ash (logand #xFF00 pc) -8))
-    (dec-sp)
-    (write-memory (get-sp-addr) (logand #x00FF pc))
-    (dec-sp))
+  (let ((pc (logand #xFFFF (- (cpu-program-counter cpu) 1))))
+    (write-memory memory (get-sp-addr cpu) (ash (logand #xFF00 pc) -8))
+    (dec-sp cpu)
+    (write-memory memory (get-sp-addr cpu) (logand #x00FF pc))
+    (dec-sp cpu))
 
   ;; push flags
-  (let ((flags (cpu-status-register *default-cpu*)))
+  (let ((flags (cpu-status-register cpu)))
     ;; break and unused always set as 1
     (setf flags (logior #x30 flags))
-    (write-memory (get-sp-addr) flags)
-    (dec-sp))
+    (write-memory memory (get-sp-addr cpu) flags)
+    (dec-sp cpu))
 
   ;; set interrupt flag only after pushing current flags
-  (set-flag :interrupt 1)
+  (set-flag cpu :interrupt 1)
 
   ;; fetch IRQ handler address
-  (let ((low (read-memory #xFFFE))
-        (high (read-memory #xFFFF)))
+  (let ((low  (read-memory memory #xFFFE))
+        (high (read-memory memory #xFFFF)))
     ;; set IRQ handler to PC
-    (setf (cpu-program-counter *default-cpu*)
+    (setf (cpu-program-counter cpu)
           (+ (ash high 8) low))))
 
 (make-instruction
  #'brk
  '((:implied #x00 1 7)))
 
-(defun bvc (offset)
-  (let ((ov (get-flag :overflow)))
+(defun bvc (cpu offset)
+  (let ((ov (get-flag cpu :overflow)))
     (when (= ov 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bvc
  '((:relative #x50 2 2 :page-cross 1)))
 
-(defun bvs (offset)
-  (let ((ov (get-flag :overflow)))
+(defun bvs (cpu offset)
+  (let ((ov (get-flag cpu :overflow)))
     (when (> ov 0)
       ;; TODO extra cycle if branch taken
-      (setf (cpu-program-counter *default-cpu*)
-            (logand #xFFFF (+ (cpu-program-counter *default-cpu*) offset))))))
+      (setf (cpu-program-counter cpu)
+            (logand #xFFFF (+ (cpu-program-counter cpu) offset))))))
 
 (make-instruction
  #'bvs
  '((:relative #x70 2 2 :page-cross 1)))
 
-(defun clc ()
-  (set-flag :carry 0))
+(defun clc (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :carry 0))
 
 (make-instruction
  #'clc
  '((:implied #x18 1 2)))
 
-(defun cld ()
-  (set-flag :decimal 0))
+(defun cld (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :decimal 0))
 
 (make-instruction
  #'cld
  '((:implied #xD8 1 2)))
 
-(defun cli ()
-  (set-flag :interrupt 0))
+(defun cli (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :interrupt 0))
 
 (make-instruction
  #'cli
  '((:implied #x58 1 2)))
 
-(defun clv ()
-  (set-flag :overflow 0))
+(defun clv (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :overflow 0))
 
 (make-instruction
  #'clv
  '((:implied #xB8 1 2)))
 
 
-(defun cmp-base (mem reg)
-  (set-flag :carry (if (>= reg mem) 1 0))
-  (set-flag :zero (if (= reg mem) 1 0))
-  (set-flag :negative (if (> (logand #x80 (- reg mem)) 0) 1 0)))
+(defun cmp-base (cpu mem reg)
+  (set-flag cpu :carry (if (>= reg mem) 1 0))
+  (set-flag cpu :zero (if (= reg mem) 1 0))
+  (set-flag cpu :negative (if (> (logand #x80 (- reg mem)) 0) 1 0)))
 
-(defun cmp (address)
-  (let ((mem (read-memory address))
-        (a (cpu-accumulator *default-cpu*)))
-    (cmp-base mem a)))
+(defun cmp (cpu memory address)
+  (let ((mem (read-memory memory address))
+        (a (cpu-accumulator cpu)))
+    (cmp-base cpu mem a)))
 
 (make-instruction
  #'cmp
@@ -709,10 +790,10 @@
    (:indirect-x  #xC1 2 6)
    (:indirect-y  #xD1 2 5 :page-cross 1)))
 
-(defun cpx (address)
-  (let ((mem (read-memory address))
-        (x (cpu-x-register *default-cpu*)))
-    (cmp-base mem x)))
+(defun cpx (cpu memory address)
+  (let ((mem (read-memory memory address))
+        (x (cpu-x-register cpu)))
+    (cmp-base cpu mem x)))
 
 (make-instruction
  #'cpx
@@ -720,10 +801,10 @@
    (:zero-page #xE4 2 3)
    (:absolute  #xEC 3 4)))
 
-(defun cpy (address)
-  (let ((mem (read-memory address))
-        (y (cpu-y-register *default-cpu*)))
-    (cmp-base mem y)))
+(defun cpy (cpu memory address)
+  (let ((mem (read-memory memory address))
+        (y (cpu-y-register cpu)))
+    (cmp-base cpu mem y)))
 
 (make-instruction
  #'cpy
@@ -731,11 +812,11 @@
    (:zero-page #xC4 2 3)
    (:absolute  #xCC 3 4)))
 
-(defun dec (address)
-  (let* ((mem (read-memory address))
+(defun dec (cpu memory address)
+  (let* ((mem (read-memory memory address))
          (res (logand #xFF (1- mem))))
-    (update-zn-flags res)
-    (write-memory address res)))
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'dec
@@ -744,26 +825,28 @@
    (:absolute    #xCE 3 6)
    (:absolute-x  #xDE 3 7)))
 
-(defun dex ()
-  (setf (cpu-x-register *default-cpu*) (logand #xFF (1- (cpu-x-register *default-cpu*))))
-  (update-zn-flags (cpu-x-register *default-cpu*)))
+(defun dex (cpu memory)
+  (declare (ignore memory))
+  (setf (cpu-x-register cpu) (logand #xFF (1- (cpu-x-register cpu))))
+  (update-zn-flags cpu (cpu-x-register cpu)))
 
 (make-instruction
  #'dex
  '((:implied #xCA 1 2)))
 
-(defun dey ()
- (setf (cpu-y-register *default-cpu*) (logand #xFF (1- (cpu-y-register *default-cpu*))))
-  (update-zn-flags (cpu-y-register *default-cpu*)))
+(defun dey (cpu memory)
+  (declare (ignore memory))
+ (setf (cpu-y-register cpu) (logand #xFF (1- (cpu-y-register cpu))))
+  (update-zn-flags cpu (cpu-y-register cpu)))
 
 (make-instruction
  #'dey
  '((:implied #x88 1 2)))
 
-(defun eor (address)
-  (let ((mem (read-memory address)))
-    (setf (cpu-accumulator *default-cpu*) (logxor mem (cpu-accumulator *default-cpu*)))
-    (update-zn-flags (cpu-accumulator *default-cpu*))))
+(defun eor (cpu memory address)
+  (let ((mem (read-memory memory address)))
+    (setf (cpu-accumulator cpu) (logxor mem (cpu-accumulator cpu)))
+    (update-zn-flags cpu (cpu-accumulator cpu))))
 
 (make-instruction
  #'eor
@@ -776,11 +859,11 @@
    (:indirect-x  #x41 2 6)
    (:indirect-y  #x51 2 5 :page-cross 1)))
 
-(defun inc (address)
-  (let* ((mem (read-memory address))
+(defun inc (cpu memory address)
+  (let* ((mem (read-memory memory address))
          (res (logand #xFF (1+ mem))))
-    (update-zn-flags res)
-    (write-memory address res)))
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'inc
@@ -789,37 +872,40 @@
    (:absolute    #xEE 3 6)
    (:absolute-x  #xFE 3 7)))
 
-(defun inx ()
-  (setf (cpu-x-register *default-cpu*) (logand #xFF (1+ (cpu-x-register *default-cpu*))))
-  (update-zn-flags (cpu-x-register *default-cpu*)))
+(defun inx (cpu memory)
+  (declare (ignore memory))
+  (setf (cpu-x-register cpu) (logand #xFF (1+ (cpu-x-register cpu))))
+  (update-zn-flags cpu (cpu-x-register cpu)))
 
 (make-instruction
  #'inx
  '((:implied #xE8 1 2)))
 
-(defun iny ()
- (setf (cpu-y-register *default-cpu*) (logand #xFF (1+ (cpu-y-register *default-cpu*))))
-  (update-zn-flags (cpu-y-register *default-cpu*)))
+(defun iny (cpu memory)
+  (declare (ignore memory))
+  (setf (cpu-y-register cpu) (logand #xFF (1+ (cpu-y-register cpu))))
+  (update-zn-flags cpu (cpu-y-register cpu)))
 
 (make-instruction
  #'iny
  '((:implied #xC8 1 2)))
 
-(defun jmp (address)
-  (setf (cpu-program-counter *default-cpu*) address))
+(defun jmp (cpu memory address)
+  (declare (ignore memory))
+  (setf (cpu-program-counter cpu) address))
 
 (make-instruction
  #'jmp
  '((:absolute     #x4C 3 3)
    (:indirect-bug #x6C 3 5)))
 
-(defun jsr (address)
-  (let ((pc (logand #xFFFF (- (cpu-program-counter *default-cpu*) 1))))
-    (write-memory (get-sp-addr) (ash (logand #xFF00 pc) -8))
-    (dec-sp)
-    (write-memory (get-sp-addr) (logand #x00FF pc))
-    (dec-sp)
-    (setf (cpu-program-counter *default-cpu*) address)))
+(defun jsr (cpu memory address)
+  (let ((pc (logand #xFFFF (- (cpu-program-counter cpu) 1))))
+    (write-memory memory (get-sp-addr cpu) (ash (logand #xFF00 pc) -8))
+    (dec-sp cpu)
+    (write-memory memory (get-sp-addr cpu) (logand #x00FF pc))
+    (dec-sp cpu)
+    (setf (cpu-program-counter cpu) address)))
 
 (make-instruction
  #'jsr
@@ -830,13 +916,11 @@
 ;; Flag New value
 ;; Z - Zero result == 0
 ;; N - Negative result bit 7
-(defun lda (address)
+(defun lda (cpu memory address)
   "Load A - loads a memory value into the accumulator."
-  (let ((mem (read-memory address)))
-    (set-acc mem)
-    ;; (set-flag :zero (if (zerop mem) 1 0))
-    ;; (set-flag :negative (get-bit mem 7))
-    (update-zn-flags mem)))
+  (let ((mem (read-memory memory address)))
+    (set-acc cpu mem)
+    (update-zn-flags cpu mem)))
 
 (make-instruction
  #'lda
@@ -849,13 +933,11 @@
    (:indirect-x  #xA1 2 6)
    (:indirect-y  #xB1 2 5 :page-cross 1)))
 
-(defun ldx (address)
+(defun ldx (cpu memory address)
   "Load X - loads a memory value into the X register."
-  (let ((mem (read-memory address)))
-    (set-x mem)
-    ;; (set-flag :zero (if (zerop mem) 1 0))
-    ;; (set-flag :negative (get-bit mem 7))
-    (update-zn-flags mem)))
+  (let ((mem (read-memory memory address)))
+    (set-x cpu mem)
+    (update-zn-flags cpu mem)))
 
 (make-instruction
  #'ldx
@@ -865,13 +947,11 @@
    (:absolute    #xAE 3 4)
    (:absolute-y  #xBE 3 4 :page-cross 1)))
 
-(defun ldy (address)
+(defun ldy (cpu memory address)
   "Load Y - loads a memory value into the Y register."
-  (let ((mem (read-memory address)))
-    (set-y mem)
-    ;; (set-flag :zero (if (zerop mem) 1 0))
-    ;; (set-flag :negative (get-bit mem 7))
-    (update-zn-flags mem)))
+  (let ((mem (read-memory memory address)))
+    (set-y cpu mem)
+    (update-zn-flags cpu mem)))
 
 (make-instruction
  #'ldy
@@ -881,14 +961,14 @@
    (:absolute    #xAC 3 4)
    (:absolute-x  #xBC 3 4 :page-cross 1)))
 
-(defun lsr (address)
-  (let* ((mem (read-memory address))
+(defun lsr (cpu memory address)
+  (let* ((mem (read-memory memory address))
          ;; (carry (if (logand #x1 mem) 1 0))
          (carry (get-bit mem 0))
          (res (logand #xFF (ash mem -1))))
-    (set-flag :carry carry)
-    (update-zn-flags res)
-    (write-memory address res)))
+    (set-flag cpu :carry carry)
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'lsr
@@ -897,22 +977,22 @@
    (:absolute    #x4E 3 6)
    (:absolute-x  #x5E 3 7)))
 
-
-(defun lsr-a ()
-  (let* ((mem (cpu-accumulator *default-cpu*))
+(defun lsr-a (cpu)
+  (let* ((mem (cpu-accumulator cpu))
          ;; (carry (if (logand #x01 mem) 1 0))
          (carry (get-bit mem 0))
          (res (logand #xFF (ash mem -1))))
-    (set-flag :carry carry)
-    (update-zn-flags res)
-    (setf (cpu-accumulator *default-cpu*) res)))
+    (set-flag cpu :carry carry)
+    (update-zn-flags cpu res)
+    (setf (cpu-accumulator cpu) res)))
 
 (make-instruction
  #'lsr-a
  '((:accumulator #x4A 1 2)))
 
 
-(defun nop ())
+(defun nop (cpu memory)
+  (declare (ignore cpu) (ignore memory)))
 
 (make-instruction
  #'nop
@@ -920,10 +1000,10 @@
 
 ;; (defun ora (mem) mem)
 
-(defun ora (address)
-  (let ((mem (read-memory address)))
-    (setf (cpu-accumulator *default-cpu*) (logior mem (cpu-accumulator *default-cpu*)))
-    (update-zn-flags (cpu-accumulator *default-cpu*))))
+(defun ora (cpu memory address)
+  (let ((mem (read-memory memory address)))
+    (setf (cpu-accumulator cpu) (logior mem (cpu-accumulator cpu)))
+    (update-zn-flags cpu (cpu-accumulator cpu))))
 
 (make-instruction
  #'ora
@@ -936,59 +1016,61 @@
    (:indirect-x  #x01 2 6)
    (:indirect-y  #x11 2 5 :page-cross 1)))
 
-(defun pha ()
-  (write-memory (+ #x0100 (cpu-stack-pointer *default-cpu*))
-                (cpu-accumulator *default-cpu*))
-  (dec-sp))
+(defun pha (cpu memory)
+  (write-memory memory
+                (+ #x0100 (cpu-stack-pointer cpu))
+                (cpu-accumulator cpu))
+  (dec-sp cpu))
 
 (make-instruction
  #'pha
  '((:implied #x48 1 3)))
 
-(defun php ()
-  (let ((flags (cpu-status-register *default-cpu*)))
+(defun php (cpu memory)
+  (let ((flags (cpu-status-register cpu)))
     ;; break and unused always set as 1
     (setf flags (logior #x30 flags))
-    (write-memory (+ #x0100 (cpu-stack-pointer *default-cpu*))
+    (write-memory memory
+                  (+ #x0100 (cpu-stack-pointer cpu))
                   flags))
-  (dec-sp))
+  (dec-sp cpu))
 
 (make-instruction
  #'php
  '((:implied #x08 1 3)))
 
-(defun pla ()
-  (inc-sp)
-  (let ((mem (read-memory (get-sp-addr))))
-    (setf (cpu-accumulator *default-cpu*) mem)
-    (update-zn-flags mem)))
+(defun pla (cpu memory)
+  (inc-sp cpu)
+  (let ((mem (read-memory memory (get-sp-addr cpu))))
+    (setf (cpu-accumulator cpu) mem)
+    (update-zn-flags cpu mem)))
 
 (make-instruction
  #'pla
  '((:implied #x68 1 4)))
 
-(defun plp ()
-  (inc-sp)
-  (let ((mem (read-memory (get-sp-addr)))
-        (b (get-flag :break))
-        (u (get-flag :unused)))
-    (setf (cpu-status-register *default-cpu*) mem)
-    (set-flag :break b)
-    (set-flag :unused u)))
+(defun plp (cpu memory)
+  (inc-sp cpu)
+  (let ((mem (read-memory memory (get-sp-addr cpu)))
+        (b (get-flag cpu :break))
+        (u (get-flag cpu :unused)))
+    (setf (cpu-status-register cpu) mem)
+    (set-flag cpu :break b)
+    (set-flag cpu :unused u)))
 
 (make-instruction
  #'plp
  '((:implied #x28 1 4)))
 
-(defun rol (address)
-  (let* ((mem (read-memory address))
+(defun rol (cpu memory address)
+  (let* ((mem (read-memory memory address))
          ;; (carry-out (if (logand #x80 mem) 1 0))
          (carry-out (get-bit mem 7))
-         (carry-in (get-flag :carry))
+         (carry-in (get-flag cpu :carry))
          (res (+ carry-in (logand #xFF (ash mem 1)))))
-    (set-flag :carry carry-out)
-    (update-zn-flags res)
-    (write-memory address res)))
+    (set-flag cpu :carry carry-out)
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'rol
@@ -997,29 +1079,29 @@
    (:absolute    #x2E 3 6)
    (:absolute-x  #x3E 3 7)))
 
-(defun rol-a ()
-  (let* ((mem (cpu-accumulator *default-cpu*))
+(defun rol-a (cpu)
+  (let* ((mem (cpu-accumulator cpu))
          ;; (carry-out (if (logand #x80 mem) 1 0))
          (carry-out (get-bit mem 7))
-         (carry-in (get-flag :carry))
+         (carry-in (get-flag cpu :carry))
          (res (+ carry-in (logand #xFF (ash mem 1)))))
-    (set-flag :carry carry-out)
-    (update-zn-flags res)
-    (setf (cpu-accumulator *default-cpu*) res)))
+    (set-flag cpu :carry carry-out)
+    (update-zn-flags cpu res)
+    (setf (cpu-accumulator cpu) res)))
 
 (make-instruction
  #'rol-a
  '((:accumulator #x2A 1 2)))
 
-(defun ror (address)
-  (let* ((mem (read-memory address))
+(defun ror (cpu memory address)
+  (let* ((mem (read-memory memory address))
          (carry-out (get-bit mem 0))
-         (carry-in (get-flag :carry))
+         (carry-in (get-flag cpu :carry))
          (res (logand #xFF (ash mem -1))) )
     (setf res (set-bit res 7 carry-in))
-    (set-flag :carry carry-out)
-    (update-zn-flags res)
-    (write-memory address res)))
+    (set-flag cpu :carry carry-out)
+    (update-zn-flags cpu res)
+    (write-memory memory address res)))
 
 (make-instruction
  #'ror
@@ -1028,63 +1110,62 @@
    (:absolute    #x6E 3 6)
    (:absolute-x  #x7E 3 7)))
 
-(defun ror-a ()
-  (let* ((mem (cpu-accumulator *default-cpu*))
+(defun ror-a (cpu)
+  (let* ((mem (cpu-accumulator cpu))
          (carry-out (get-bit mem 0))
-         (carry-in (get-flag :carry))
+         (carry-in (get-flag cpu :carry))
          (res (logand #xFF (ash mem -1))))
     (setf res (set-bit res 7 carry-in))
-    (set-flag :carry carry-out)
-    (update-zn-flags res)
-    (setf (cpu-accumulator *default-cpu*) res)))
+    (set-flag cpu :carry carry-out)
+    (update-zn-flags cpu res)
+    (setf (cpu-accumulator cpu) res)))
 
 (make-instruction
  #'ror-a
  '((:accumulator #x6A 1 2)))
 
 ;; TODO interrupt disable flag applies immediately
-(defun rti ()
-  (plp)
-  (rts)
-  (inc-pc -1))
+(defun rti (cpu memory)
+  (plp cpu memory)
+  (rts cpu memory)
+  (inc-pc cpu -1))
 
 (make-instruction
  #'rti
  '((:implied #x40 1 6)))
 
-(defun rts ()
+(defun rts (cpu memory)
   (let (pc-low pc-high pc)
-    (inc-sp)
-    (setf pc-low  (read-memory (get-sp-addr)))
-    (inc-sp)
-    (setf pc-high (read-memory (get-sp-addr)))
-    ;; TODO Should we add 1 here? I think it's supposed to be off by one
+    (inc-sp cpu)
+    (setf pc-low  (read-memory memory (get-sp-addr cpu)))
+    (inc-sp cpu)
+    (setf pc-high (read-memory memory (get-sp-addr cpu)))
+    ;; TODO Should we add 1 here? I think it's supposed to be off by one?
     (setf pc (+ (ash pc-high 8) pc-low 1))
-    (setf (cpu-program-counter *default-cpu*) pc)))
+    (setf (cpu-program-counter cpu) pc)))
 
 (make-instruction
  #'rts
  '((:implied #x60 1 6)))
 
-(defun sbc (address)
-  (let* ((mem (read-memory address))
-         (carry (get-flag :carry))
-         (a (cpu-accumulator *default-cpu*))
+(defun sbc (cpu memory address)
+  (let* ((mem (read-memory memory address))
+         (carry (get-flag cpu :carry))
+         (a (cpu-accumulator cpu))
          (mem-not (logand #xFF (lognot mem)))
          (res (+ a mem-not carry)))
 
-    (set-flag :carry (if (> mem a) 0 1))
+    (set-flag cpu :carry (if (> mem a) 0 1))
     (setf res (logand #xFF res))
 
     ;; (result ^ A) & (result ^ ~memory) & $80
-    (set-flag :overflow
+    (set-flag cpu :overflow
               (ash (logand (logxor res A)
                            (logxor res mem-not)
                            #x80)
                    -7))
-    (update-zn-flags res)
-    (format t "mem ~x carry ~a a ~x res ~x ~%" mem carry a res)
-    (setf (cpu-accumulator *default-cpu*) res)))
+    (update-zn-flags cpu res)
+    (setf (cpu-accumulator cpu) res)))
 
 (make-instruction
  #'sbc
@@ -1098,22 +1179,25 @@
    (:indirect-y  #xF1 2 5 :page-cross 1)))
 
 
-(defun sec ()
-  (set-flag :carry 1))
+(defun sec (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :carry 1))
 
 (make-instruction
  #'sec
  '((:implied #x38 1 2)))
 
-(defun sed ()
-  (set-flag :decimal 1))
+(defun sed (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :decimal 1))
 
 (make-instruction
  #'sed
  '((:implied #xF8 1 2)))
 
-(defun sei ()
-  (set-flag :interrupt 1))
+(defun sei (cpu memory)
+  (declare (ignore memory))
+  (set-flag cpu :interrupt 1))
 
 (make-instruction
  #'sei
@@ -1121,9 +1205,9 @@
 
 ;; memory = A
 ;; STA stores the accumulator value into memory.
-(defun sta (address)
+(defun sta (cpu memory address)
   "Store A"
-  (write-memory address (cpu-accumulator *default-cpu*)))
+  (write-memory memory address (cpu-accumulator cpu)))
 
 (make-instruction
  #'sta
@@ -1135,8 +1219,8 @@
    (:indirect-x  #x81 2 6)
    (:indirect-y  #x91 2 6)))
 
-(defun stx (address)
-  (write-memory address (cpu-x-register *default-cpu*)))
+(defun stx (cpu memory address)
+  (write-memory memory address (cpu-x-register cpu)))
 
 (make-instruction
  #'stx
@@ -1144,8 +1228,8 @@
    (:zero-page-x #x96 2 4)
    (:absolute    #x8E 3 4)))
 
-(defun sty (address)
-  (write-memory address (cpu-y-register *default-cpu*)))
+(defun sty (cpu memory address)
+  (write-memory memory address (cpu-y-register cpu)))
 
 (make-instruction
  #'sty
@@ -1153,54 +1237,60 @@
    (:zero-page-x #x94 2 4)
    (:absolute    #x8C 3 4)))
 
-(defun tax ()
+(defun tax (cpu memory)
   "Transfer A to X"
-  (setf (cpu-x-register *default-cpu*) (cpu-accumulator *default-cpu*))
-  (update-zn-flags (cpu-x-register *default-cpu*)))
+  (declare (ignore memory))
+  (setf (cpu-x-register cpu) (cpu-accumulator cpu))
+  (update-zn-flags cpu (cpu-x-register cpu)))
 
 (make-instruction
  #'tax
  '((:implied #xAA 1 2)))
 
-(defun tay ()
+(defun tay (cpu memory)
   "Transfer A to Y"
-  (setf (cpu-y-register *default-cpu*) (cpu-accumulator *default-cpu*))
-  (update-zn-flags (cpu-y-register *default-cpu*)))
+  (declare (ignore memory))
+  (setf (cpu-y-register cpu) (cpu-accumulator cpu))
+  (update-zn-flags cpu (cpu-y-register cpu)))
 
 (make-instruction
  #'tay
  '((:implied #xA8 1 2)))
 
-(defun tsx ()
-  (setf (cpu-x-register *default-cpu*)
-        (cpu-stack-pointer *default-cpu*))
-  (update-zn-flags (cpu-x-register *default-cpu*)))
+(defun tsx (cpu memory)
+  (declare (ignore memory))
+  (setf (cpu-x-register cpu)
+        (cpu-stack-pointer cpu))
+  (update-zn-flags cpu (cpu-x-register cpu)))
 
 (make-instruction
  #'tsx
  '((:implied #xBA 1 2)))
 
-(defun txa ()
+(defun txa (cpu memory)
   "Transfer X to A"
-  (setf (cpu-accumulator *default-cpu*) (cpu-x-register *default-cpu*))
-  (update-zn-flags (cpu-x-register *default-cpu*)))
+  (declare (ignore memory))
+  (setf (cpu-accumulator cpu) (cpu-x-register cpu))
+  (update-zn-flags cpu (cpu-x-register cpu)))
 
 (make-instruction
  #'txa
  '((:implied #x8A 1 2)))
 
-(defun txs ()
-  (setf (cpu-stack-pointer *default-cpu*)
-        (cpu-x-register *default-cpu*)))
+(defun txs (cpu memory)
+  (declare (ignore memory))
+  (setf (cpu-stack-pointer cpu)
+        (cpu-x-register cpu)))
 
 (make-instruction
  #'txs
  '((:implied #x9A 1 2)))
 
-(defun tya ()
+(defun tya (cpu memory)
   "Transfer Y to A"
-  (setf (cpu-accumulator *default-cpu*) (cpu-y-register *default-cpu*))
-  (update-zn-flags (cpu-y-register *default-cpu*)))
+  (declare (ignore memory))
+  (setf (cpu-accumulator cpu) (cpu-y-register cpu))
+  (update-zn-flags cpu (cpu-y-register cpu)))
 
 (make-instruction
  #'tya
