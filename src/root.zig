@@ -1,6 +1,18 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 
+// Export emulator features
+pub const Cpu = @import("cpu.zig").Cpu;
+pub const Bus = @import("cpu.zig").Bus;
+
+test {
+    _ = @import("cpu.zig");
+    _ = @import("bus.zig");
+    _ = @import("instruction_tests.zig");
+    _ = @import("addressing_tests.zig");
+
+}
+
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you
     // are implementing gzip, then only the compressed bytes should be sent to
