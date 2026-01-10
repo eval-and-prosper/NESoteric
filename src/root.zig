@@ -10,6 +10,8 @@ test {
     _ = @import("bus.zig");
     _ = @import("instruction_tests.zig");
     _ = @import("addressing_tests.zig");
+    _ = @import("cartridge.zig");
+    _ = @import("mapper.zig");
 
 }
 
