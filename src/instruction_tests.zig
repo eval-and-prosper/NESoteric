@@ -3,24 +3,28 @@ const testing = std.testing;
 
 const cpu = @import("cpu.zig");
 const bus = @import("bus.zig");
+const mapper = @import("mapper.zig");
 
 const TestContext = struct {
     c: cpu.Cpu,
     b: bus.Bus,
+    tm: mapper.TestMapper,
+    m: mapper.Mapper,
 };
 
-fn setup() TestContext {
-    var ctx = TestContext{
-        .c = cpu.Cpu{},
-        .b = bus.Bus{},
-    };
+fn setup(ctx: *TestContext) void {
+    ctx.tm.initInPlace();
+    ctx.m = ctx.tm.interface();
+    ctx.b = bus.Bus{};
+    ctx.b.mapper = &ctx.m;
+    ctx.c = cpu.Cpu{};
     ctx.c.powerOn(&ctx.b);
     ctx.c.programCounter = 0;
-    return ctx;
 }
 
 test "CPU ADC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
 
     const adcImmediate = cpu.Cpu.getOpcode("ADC", .immediate);
     try testing.expectEqual(0x69, adcImmediate);
@@ -33,7 +37,7 @@ test "CPU ADC" {
     try testing.expectEqual(0x62, ctx.c.accumulator);
 
     // carry set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x20;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, adcImmediate);
@@ -42,7 +46,7 @@ test "CPU ADC" {
     try testing.expectEqual(0x63, ctx.c.accumulator);
 
     // carry
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0xFF;
     ctx.b.write(0, adcImmediate);
     ctx.b.write(1, 0x01);
@@ -51,7 +55,7 @@ test "CPU ADC" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // zero flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x00;
     ctx.b.write(0, adcImmediate);
     ctx.b.write(1, 0x00);
@@ -59,7 +63,7 @@ test "CPU ADC" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // negative flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x50;
     ctx.b.write(0, adcImmediate);
     ctx.b.write(1, 0x90);
@@ -67,7 +71,7 @@ test "CPU ADC" {
     try testing.expectEqual(true, ctx.c.statusRegister.negative);
 
     // overflow
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x7F; // +127
     ctx.b.write(0, adcImmediate);
     ctx.b.write(1, 0x01); // +1
@@ -76,7 +80,7 @@ test "CPU ADC" {
     try testing.expectEqual(0x80, ctx.c.accumulator);
 
     // overflow: negative + negative = positive
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80; // -128
     ctx.b.write(0, adcImmediate);
     ctx.b.write(1, 0x80); // -128
@@ -87,7 +91,8 @@ test "CPU ADC" {
 }
 
 test "CPU AND" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
 
     const andImmediate = cpu.Cpu.getOpcode("AND", .immediate);
     try testing.expectEqual(0x29, andImmediate);
@@ -100,7 +105,7 @@ test "CPU AND" {
     try testing.expectEqual(0xA0, ctx.c.accumulator);
 
     // zero flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0xF0;
     ctx.b.write(0, andImmediate);
     ctx.b.write(1, 0x0F);
@@ -108,7 +113,7 @@ test "CPU AND" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // negative flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0xFF;
     ctx.b.write(0, andImmediate);
     ctx.b.write(1, 0x80);
@@ -117,7 +122,8 @@ test "CPU AND" {
 }
 
 test "CPU ASL" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const aslAcc = cpu.Cpu.getOpcode("ASL", .accumulator);
 
     // basic shift operation
@@ -127,7 +133,7 @@ test "CPU ASL" {
     try testing.expectEqual(0x55 << 1, ctx.c.accumulator);
 
     // carry flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80;
     ctx.b.write(0, aslAcc);
     ctx.c.step(&ctx.b);
@@ -136,7 +142,7 @@ test "CPU ASL" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // negative flag behavior
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x40;
     ctx.b.write(0, aslAcc);
     ctx.c.step(&ctx.b);
@@ -144,7 +150,8 @@ test "CPU ASL" {
 }
 
 test "CPU BCC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bcc = cpu.Cpu.getOpcode("BCC", .relative);
 
     // test branch when carry clear
@@ -155,7 +162,7 @@ test "CPU BCC" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when carry set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, bcc);
     ctx.b.write(1, 0x05);
@@ -163,7 +170,7 @@ test "CPU BCC" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, bcc);
     ctx.b.write(1, 0xFA);
@@ -172,7 +179,8 @@ test "CPU BCC" {
 }
 
 test "CPU BCS" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bcs = cpu.Cpu.getOpcode("BCS", .relative);
 
     // test branch when carry set
@@ -183,7 +191,7 @@ test "CPU BCS" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when carry clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, bcs);
     ctx.b.write(1, 0x05);
@@ -191,7 +199,7 @@ test "CPU BCS" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, bcs);
     ctx.b.write(1, 0xFA);
@@ -200,7 +208,8 @@ test "CPU BCS" {
 }
 
 test "CPU BEQ" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const beq = cpu.Cpu.getOpcode("BEQ", .relative);
 
     // test branch when zero flag set
@@ -211,7 +220,7 @@ test "CPU BEQ" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when zero flag clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = false;
     ctx.b.write(0, beq);
     ctx.b.write(1, 0x05);
@@ -219,7 +228,7 @@ test "CPU BEQ" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.b.write(0, beq);
     ctx.b.write(1, 0xFA);
@@ -228,7 +237,8 @@ test "CPU BEQ" {
 }
 
 test "CPU BIT" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bitZp = cpu.Cpu.getOpcode("BIT", .zero_page);
 
     // Zero flag behavior with AND result
@@ -240,7 +250,7 @@ test "CPU BIT" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // Zero flag clear when bits match
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000001;
     ctx.b.write(0, bitZp);
     ctx.b.write(1, 0x50);
@@ -249,7 +259,7 @@ test "CPU BIT" {
     try testing.expectEqual(false, ctx.c.statusRegister.zero);
 
     // Negative flag from memory bit 7
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000001;
     ctx.b.write(0, bitZp);
     ctx.b.write(1, 0x50);
@@ -258,7 +268,7 @@ test "CPU BIT" {
     try testing.expectEqual(true, ctx.c.statusRegister.negative);
 
     // Overflow flag from memory bit 6
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000001;
     ctx.b.write(0, bitZp);
     ctx.b.write(1, 0x50);
@@ -268,7 +278,8 @@ test "CPU BIT" {
 }
 
 test "CPU BMI" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bmi = cpu.Cpu.getOpcode("BMI", .relative);
 
     // test branch when negative flag set
@@ -279,7 +290,7 @@ test "CPU BMI" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when negative flag clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.negative = false;
     ctx.b.write(0, bmi);
     ctx.b.write(1, 0x05);
@@ -287,7 +298,7 @@ test "CPU BMI" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.negative = true;
     ctx.b.write(0, bmi);
     ctx.b.write(1, 0xFA);
@@ -296,7 +307,8 @@ test "CPU BMI" {
 }
 
 test "CPU BNE" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bne = cpu.Cpu.getOpcode("BNE", .relative);
 
     // test branch when zero flag clear
@@ -307,7 +319,7 @@ test "CPU BNE" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when zero flag set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.b.write(0, bne);
     ctx.b.write(1, 0x05);
@@ -315,7 +327,7 @@ test "CPU BNE" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = false;
     ctx.b.write(0, bne);
     ctx.b.write(1, 0xFA);
@@ -324,12 +336,12 @@ test "CPU BNE" {
 }
 
 test "CPU BRK" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
+
     const brk = cpu.Cpu.getOpcode("BRK", .implied_bus);
 
-    // Setup IRQ vector
-    ctx.b.write(0xFFFE, 0x34);
-    ctx.b.write(0xFFFF, 0x12);
+    ctx.tm.setIrqVector(0x1234);
 
     // Basic BRK - jumps to IRQ vector
     ctx.c.programCounter = 0x0200;
@@ -339,7 +351,7 @@ test "CPU BRK" {
     try testing.expectEqual(0x1234, ctx.c.programCounter);
 
     // Sets interrupt disable flag
-    ctx = setup();
+    setup(&ctx);
     ctx.c.programCounter = 0x0200;
     ctx.c.stackPointer = 0xFF;
     ctx.c.statusRegister.interrupt_disable = false;
@@ -350,7 +362,7 @@ test "CPU BRK" {
     try testing.expectEqual(true, ctx.c.statusRegister.interrupt_disable);
 
     // Pushes return address (PC+2) to stack - high byte first
-    ctx = setup();
+    setup(&ctx);
     ctx.c.programCounter = 0x0200;
     ctx.c.stackPointer = 0xFF;
     ctx.b.write(0xFFFE, 0x00);
@@ -361,7 +373,7 @@ test "CPU BRK" {
     try testing.expectEqual(0x02, ctx.b.read(0x01FE)); // Low byte of 0x0202
 
     // Pushes status register with B and unused flags set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.programCounter = 0x0200;
     ctx.c.stackPointer = 0xFF;
     ctx.c.statusRegister.negative = true;
@@ -379,7 +391,7 @@ test "CPU BRK" {
     try testing.expectEqual(true, (pushedFlags & 0x01) != 0); // Carry preserved
 
     // Stack pointer decremented by 3 (2 for PC, 1 for flags)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.programCounter = 0x0200;
     ctx.c.stackPointer = 0xFF;
     ctx.b.write(0xFFFE, 0x00);
@@ -390,7 +402,8 @@ test "CPU BRK" {
 }
 
 test "CPU BVC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bvc = cpu.Cpu.getOpcode("BVC", .relative);
 
     // test branch when overflow flag clear
@@ -401,7 +414,7 @@ test "CPU BVC" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when overflow flag set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.overflow = true;
     ctx.b.write(0, bvc);
     ctx.b.write(1, 0x05);
@@ -409,7 +422,7 @@ test "CPU BVC" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.overflow = false;
     ctx.b.write(0, bvc);
     ctx.b.write(1, 0xFA);
@@ -418,7 +431,8 @@ test "CPU BVC" {
 }
 
 test "CPU BVS" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const bvs = cpu.Cpu.getOpcode("BVS", .relative);
 
     // test branch when overflow flag set
@@ -429,7 +443,7 @@ test "CPU BVS" {
     try testing.expectEqual(0x07, ctx.c.programCounter);
 
     // test no branch when overflow flag clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.overflow = false;
     ctx.b.write(0, bvs);
     ctx.b.write(1, 0x05);
@@ -437,7 +451,7 @@ test "CPU BVS" {
     try testing.expectEqual(0x02, ctx.c.programCounter);
 
     // test negative branch offset
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.overflow = true;
     ctx.b.write(0, bvs);
     ctx.b.write(1, 0xFA);
@@ -446,7 +460,8 @@ test "CPU BVS" {
 }
 
 test "CPU CLC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const clc = cpu.Cpu.getOpcode("CLC", .implied);
 
     // Clear carry flag when set
@@ -456,14 +471,14 @@ test "CPU CLC" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Keep carry flag clear when already clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, clc);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.negative = true;
@@ -476,7 +491,8 @@ test "CPU CLC" {
 }
 
 test "CPU CLD" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const cld = cpu.Cpu.getOpcode("CLD", .implied);
 
     // Clear decimal flag when set
@@ -486,14 +502,14 @@ test "CPU CLD" {
     try testing.expectEqual(false, ctx.c.statusRegister.decimal);
 
     // Keep decimal flag clear when already clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.decimal = false;
     ctx.b.write(0, cld);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(false, ctx.c.statusRegister.decimal);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.negative = true;
@@ -508,7 +524,8 @@ test "CPU CLD" {
 }
 
 test "CPU CLI" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const cli = cpu.Cpu.getOpcode("CLI", .implied);
 
     // Clear interrupt flag when set
@@ -518,14 +535,14 @@ test "CPU CLI" {
     try testing.expectEqual(false, ctx.c.statusRegister.interrupt_disable);
 
     // Keep interrupt flag clear when already clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.interrupt_disable = false;
     ctx.b.write(0, cli);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(false, ctx.c.statusRegister.interrupt_disable);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.negative = true;
@@ -542,7 +559,8 @@ test "CPU CLI" {
 }
 
 test "CPU CLV" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const clv = cpu.Cpu.getOpcode("CLV", .implied);
 
     // Clear overflow flag when set
@@ -552,14 +570,14 @@ test "CPU CLV" {
     try testing.expectEqual(false, ctx.c.statusRegister.overflow);
 
     // Keep overflow flag clear when already clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.overflow = false;
     ctx.b.write(0, clv);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(false, ctx.c.statusRegister.overflow);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.carry = true;
@@ -576,7 +594,8 @@ test "CPU CLV" {
 }
 
 test "CPU CMP" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const cmpImmediate = cpu.Cpu.getOpcode("CMP", .immediate);
 
     // Test zero flag when accumulator equals memory
@@ -588,7 +607,7 @@ test "CPU CMP" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Test carry flag when accumulator greater than memory
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, cmpImmediate);
     ctx.b.write(1, 0x40);
@@ -597,7 +616,7 @@ test "CPU CMP" {
     try testing.expectEqual(false, ctx.c.statusRegister.zero);
 
     // Test negative flag when result has bit 7 set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x40;
     ctx.b.write(0, cmpImmediate);
     ctx.b.write(1, 0xC0);
@@ -606,7 +625,7 @@ test "CPU CMP" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Verify accumulator unchanged
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, cmpImmediate);
     ctx.b.write(1, 0x40);
@@ -615,7 +634,8 @@ test "CPU CMP" {
 }
 
 test "CPU CPX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const cpxImmediate = cpu.Cpu.getOpcode("CPX", .immediate);
 
     // Test zero flag when X register equals memory
@@ -627,7 +647,7 @@ test "CPU CPX" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Test carry flag when X register greater than memory
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x42;
     ctx.b.write(0, cpxImmediate);
     ctx.b.write(1, 0x40);
@@ -636,7 +656,7 @@ test "CPU CPX" {
     try testing.expectEqual(false, ctx.c.statusRegister.zero);
 
     // Test negative flag when result has bit 7 set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x40;
     ctx.b.write(0, cpxImmediate);
     ctx.b.write(1, 0xC0);
@@ -645,7 +665,7 @@ test "CPU CPX" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Verify X register unchanged
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x42;
     ctx.b.write(0, cpxImmediate);
     ctx.b.write(1, 0x40);
@@ -654,7 +674,8 @@ test "CPU CPX" {
 }
 
 test "CPU CPY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const cpyImmediate = cpu.Cpu.getOpcode("CPY", .immediate);
 
     // Test zero flag when Y register equals memory
@@ -666,7 +687,7 @@ test "CPU CPY" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Test carry flag when Y register greater than memory
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x42;
     ctx.b.write(0, cpyImmediate);
     ctx.b.write(1, 0x40);
@@ -675,7 +696,7 @@ test "CPU CPY" {
     try testing.expectEqual(false, ctx.c.statusRegister.zero);
 
     // Test negative flag when result has bit 7 set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x40;
     ctx.b.write(0, cpyImmediate);
     ctx.b.write(1, 0xC0);
@@ -684,7 +705,7 @@ test "CPU CPY" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Verify Y register unchanged
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x42;
     ctx.b.write(0, cpyImmediate);
     ctx.b.write(1, 0x40);
@@ -693,7 +714,8 @@ test "CPU CPY" {
 }
 
 test "CPU DEC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const decZp = cpu.Cpu.getOpcode("DEC", .zero_page);
 
     // Basic decrement
@@ -704,7 +726,7 @@ test "CPU DEC" {
     try testing.expectEqual(0x41, ctx.b.read(0x50));
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, decZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0x01);
@@ -713,7 +735,7 @@ test "CPU DEC" {
     try testing.expectEqual(0x00, ctx.b.read(0x50));
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, decZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0x00);
@@ -722,7 +744,7 @@ test "CPU DEC" {
     try testing.expectEqual(0xFF, ctx.b.read(0x50));
 
     // Wrapping from 0 to FF
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, decZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0x00);
@@ -731,7 +753,8 @@ test "CPU DEC" {
 }
 
 test "CPU DEX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const dex = cpu.Cpu.getOpcode("DEX", .implied);
 
     // Basic decrement
@@ -741,7 +764,7 @@ test "CPU DEX" {
     try testing.expectEqual(0x41, ctx.c.xRegister);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x01;
     ctx.b.write(0, dex);
     ctx.c.step(&ctx.b);
@@ -749,7 +772,7 @@ test "CPU DEX" {
     try testing.expectEqual(0x00, ctx.c.xRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x00;
     ctx.b.write(0, dex);
     ctx.c.step(&ctx.b);
@@ -757,7 +780,7 @@ test "CPU DEX" {
     try testing.expectEqual(0xFF, ctx.c.xRegister);
 
     // Wrapping from 0 to FF
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x00;
     ctx.b.write(0, dex);
     ctx.c.step(&ctx.b);
@@ -765,7 +788,8 @@ test "CPU DEX" {
 }
 
 test "CPU DEY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const dey = cpu.Cpu.getOpcode("DEY", .implied);
 
     // Basic decrement
@@ -775,7 +799,7 @@ test "CPU DEY" {
     try testing.expectEqual(0x41, ctx.c.yRegister);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x01;
     ctx.b.write(0, dey);
     ctx.c.step(&ctx.b);
@@ -783,7 +807,7 @@ test "CPU DEY" {
     try testing.expectEqual(0x00, ctx.c.yRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x00;
     ctx.b.write(0, dey);
     ctx.c.step(&ctx.b);
@@ -791,7 +815,7 @@ test "CPU DEY" {
     try testing.expectEqual(0xFF, ctx.c.yRegister);
 
     // Wrapping from 0 to FF 
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x00;
     ctx.b.write(0, dey);
     ctx.c.step(&ctx.b);
@@ -799,7 +823,8 @@ test "CPU DEY" {
 }
 
 test "CPU EOR" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const eorImmediate = cpu.Cpu.getOpcode("EOR", .immediate);
 
     // Basic exclusive OR operation
@@ -810,7 +835,7 @@ test "CPU EOR" {
     try testing.expectEqual(0b01011010, ctx.c.accumulator);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b11110000;
     ctx.b.write(0, eorImmediate);
     ctx.b.write(1, 0b11110000);
@@ -819,7 +844,7 @@ test "CPU EOR" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00110011;
     ctx.b.write(0, eorImmediate);
     ctx.b.write(1, 0b10101010);
@@ -829,7 +854,8 @@ test "CPU EOR" {
 }
 
 test "CPU INC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const incZp = cpu.Cpu.getOpcode("INC", .zero_page);
 
     // Basic increment
@@ -840,7 +866,7 @@ test "CPU INC" {
     try testing.expectEqual(0x43, ctx.b.read(0x50));
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, incZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0xFF); // Will increment to zero
@@ -849,7 +875,7 @@ test "CPU INC" {
     try testing.expectEqual(0x00, ctx.b.read(0x50));
 
     // Negative flag when bit 7 is set 
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, incZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0x7F); // Will increment to 0x80
@@ -858,7 +884,7 @@ test "CPU INC" {
     try testing.expectEqual(0x80, ctx.b.read(0x50));
 
     // Wrapping from FF to 00
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, incZp);
     ctx.b.write(1, 0x50);
     ctx.b.write(0x50, 0xFF);
@@ -867,7 +893,8 @@ test "CPU INC" {
 }
 
 test "CPU INX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const inx = cpu.Cpu.getOpcode("INX", .implied);
 
     // Basic increment
@@ -877,7 +904,7 @@ test "CPU INX" {
     try testing.expectEqual(0x43, ctx.c.xRegister);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0xFF;
     ctx.b.write(0, inx);
     ctx.c.step(&ctx.b);
@@ -885,7 +912,7 @@ test "CPU INX" {
     try testing.expectEqual(0x00, ctx.c.xRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x7F;
     ctx.b.write(0, inx);
     ctx.c.step(&ctx.b);
@@ -893,7 +920,7 @@ test "CPU INX" {
     try testing.expectEqual(0x80, ctx.c.xRegister);
 
     // Wrapping from FF to 00
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0xFF;
     ctx.b.write(0, inx);
     ctx.c.step(&ctx.b);
@@ -901,7 +928,8 @@ test "CPU INX" {
 }
 
 test "CPU INY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const iny = cpu.Cpu.getOpcode("INY", .implied);
 
     // Basic increment
@@ -911,7 +939,7 @@ test "CPU INY" {
     try testing.expectEqual(0x43, ctx.c.yRegister);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0xFF;
     ctx.b.write(0, iny);
     ctx.c.step(&ctx.b);
@@ -919,7 +947,7 @@ test "CPU INY" {
     try testing.expectEqual(0x00, ctx.c.yRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x7F;
     ctx.b.write(0, iny);
     ctx.c.step(&ctx.b);
@@ -927,7 +955,7 @@ test "CPU INY" {
     try testing.expectEqual(0x80, ctx.c.yRegister);
 
     // Wrapping from FF to 00
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0xFF;
     ctx.b.write(0, iny);
     ctx.c.step(&ctx.b);
@@ -935,7 +963,8 @@ test "CPU INY" {
 }
 
 test "CPU JMP" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const jmpAbs = cpu.Cpu.getOpcode("JMP", .absolute);
     const jmpInd = cpu.Cpu.getOpcode("JMP", .indirect_bug);
 
@@ -947,7 +976,7 @@ test "CPU JMP" {
     try testing.expectEqual(0x1234, ctx.c.programCounter);
 
     // Indirect addressing
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, jmpInd);
     ctx.b.write(1, 0x20);
     ctx.b.write(2, 0x00);
@@ -957,7 +986,7 @@ test "CPU JMP" {
     try testing.expectEqual(0x1234, ctx.c.programCounter);
 
     // Indirect page boundary bug
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, jmpInd);
     ctx.b.write(1, 0xFF);
     ctx.b.write(2, 0x02);
@@ -968,7 +997,8 @@ test "CPU JMP" {
 }
 
 test "CPU JSR" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const jsr = cpu.Cpu.getOpcode("JSR", .absolute);
 
     // Test program counter update
@@ -979,7 +1009,7 @@ test "CPU JSR" {
     try testing.expectEqual(@as(u16, 0x1234), ctx.c.programCounter);
 
     // Test return address pushed to stack
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFF;
     ctx.c.programCounter = 0x1234;
     ctx.b.write(0x1234, jsr);
@@ -990,7 +1020,7 @@ test "CPU JSR" {
     try testing.expectEqual(@as(u8, 0x36), ctx.b.read(0x01FE));
 
     // Test stack pointer decremented
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFF;
     ctx.b.write(0, jsr);
     ctx.b.write(1, 0x34);
@@ -1002,7 +1032,8 @@ test "CPU JSR" {
 
 
 test "CPU LDA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const ldaImmediate = cpu.Cpu.getOpcode("LDA", .immediate);
 
     // Basic load
@@ -1012,7 +1043,7 @@ test "CPU LDA" {
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Zero flag when loading zero
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldaImmediate);
     ctx.b.write(1, 0x00);
     ctx.c.step(&ctx.b);
@@ -1020,7 +1051,7 @@ test "CPU LDA" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldaImmediate);
     ctx.b.write(1, 0x80);
     ctx.c.step(&ctx.b);
@@ -1028,7 +1059,7 @@ test "CPU LDA" {
     try testing.expectEqual(0x80, ctx.c.accumulator);
 
     // Flags cleared when loading positive non-zero value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.b.write(0, ldaImmediate);
@@ -1039,7 +1070,8 @@ test "CPU LDA" {
 }
 
 test "CPU LDX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const ldxImmediate = cpu.Cpu.getOpcode("LDX", .immediate);
 
     // Basic load
@@ -1049,7 +1081,7 @@ test "CPU LDX" {
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Zero flag when loading zero
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldxImmediate);
     ctx.b.write(1, 0x00);
     ctx.c.step(&ctx.b);
@@ -1057,7 +1089,7 @@ test "CPU LDX" {
     try testing.expectEqual(0x00, ctx.c.xRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldxImmediate);
     ctx.b.write(1, 0x80);
     ctx.c.step(&ctx.b);
@@ -1065,7 +1097,7 @@ test "CPU LDX" {
     try testing.expectEqual(0x80, ctx.c.xRegister);
 
     // Flags cleared when loading positive non-zero value 
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.b.write(0, ldxImmediate);
@@ -1076,7 +1108,8 @@ test "CPU LDX" {
 }
 
 test "CPU LDY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const ldyImmediate = cpu.Cpu.getOpcode("LDY", .immediate);
 
     // Basic load
@@ -1086,7 +1119,7 @@ test "CPU LDY" {
     try testing.expectEqual(0x42, ctx.c.yRegister);
 
     // Zero flag when loading zero
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldyImmediate);
     ctx.b.write(1, 0x00);
     ctx.c.step(&ctx.b);
@@ -1094,7 +1127,7 @@ test "CPU LDY" {
     try testing.expectEqual(0x00, ctx.c.yRegister);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.b.write(0, ldyImmediate);
     ctx.b.write(1, 0x80);
     ctx.c.step(&ctx.b);
@@ -1102,7 +1135,7 @@ test "CPU LDY" {
     try testing.expectEqual(0x80, ctx.c.yRegister);
 
     // Flags cleared when loading positive non-zero value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.b.write(0, ldyImmediate);
@@ -1113,7 +1146,8 @@ test "CPU LDY" {
 }
 
 test "CPU LSR" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const lsrAcc = cpu.Cpu.getOpcode("LSR", .accumulator);
 
     // Basic shift accumulator
@@ -1123,7 +1157,7 @@ test "CPU LSR" {
     try testing.expectEqual(0b01010101, ctx.c.accumulator);
 
     // Carry flag gets old bit 0
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b10101011;
     ctx.b.write(0, lsrAcc);
     ctx.c.step(&ctx.b);
@@ -1131,7 +1165,7 @@ test "CPU LSR" {
     try testing.expectEqual(0b01010101, ctx.c.accumulator);
 
     // Zero flag when result is zero, carry from bit 0
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000001;
     ctx.b.write(0, lsrAcc);
     ctx.c.step(&ctx.b);
@@ -1140,7 +1174,7 @@ test "CPU LSR" {
     try testing.expectEqual(0b00000000, ctx.c.accumulator);
 
     // Carry clear when bit 0 is clear (even if bit 7 set)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b10000000;
     ctx.b.write(0, lsrAcc);
     ctx.c.step(&ctx.b);
@@ -1148,7 +1182,7 @@ test "CPU LSR" {
     try testing.expectEqual(0b01000000, ctx.c.accumulator);
 
     // Negative flag is always clear
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b11111111;
     ctx.b.write(0, lsrAcc);
     ctx.c.step(&ctx.b);
@@ -1157,7 +1191,8 @@ test "CPU LSR" {
 }
 
 test "CPU NOP" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const nop = cpu.Cpu.getOpcode("NOP", .implied);
 
     // Test NOP advances program counter
@@ -1167,7 +1202,7 @@ test "CPU NOP" {
     try testing.expectEqual(oldPc + 1, ctx.c.programCounter);
 
     // Test preserves all registers
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.c.xRegister = 0x43;
     ctx.c.yRegister = 0x44;
@@ -1178,7 +1213,7 @@ test "CPU NOP" {
     try testing.expectEqual(0x44, ctx.c.yRegister);
 
     // Test preserves all flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.carry = true;
@@ -1196,7 +1231,8 @@ test "CPU NOP" {
 }
 
 test "CPU ORA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const oraImmediate = cpu.Cpu.getOpcode("ORA", .immediate);
 
     // Basic inclusive or operation
@@ -1207,7 +1243,7 @@ test "CPU ORA" {
     try testing.expectEqual(0b11111010, ctx.c.accumulator);
 
     // Zero flag when result is zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000000;
     ctx.b.write(0, oraImmediate);
     ctx.b.write(1, 0b00000000);
@@ -1216,7 +1252,7 @@ test "CPU ORA" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when bit 7 is set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00110011;
     ctx.b.write(0, oraImmediate);
     ctx.b.write(1, 0b10000000);
@@ -1226,7 +1262,8 @@ test "CPU ORA" {
 }
 
 test "CPU PHA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const pha = cpu.Cpu.getOpcode("PHA", .implied_bus);
 
     // Basic push
@@ -1237,21 +1274,21 @@ test "CPU PHA" {
     try testing.expectEqual(0x42, ctx.b.read(0x01FF));
 
     // Decrements stack pointer
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFF;
     ctx.b.write(0, pha);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0xFE, ctx.c.stackPointer);
 
     // Preserves accumulator
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, pha);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Doesn't affect flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.carry = true;
@@ -1265,7 +1302,8 @@ test "CPU PHA" {
 }
 
 test "CPU PHP" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const php = cpu.Cpu.getOpcode("PHP", .implied_bus);
 
     // Basic push flags 
@@ -1286,14 +1324,14 @@ test "CPU PHP" {
     try testing.expectEqual(true, (pushedFlags & 0x20) != 0); // Unused
 
     // Decrements stack pointer
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFF;
     ctx.b.write(0, php);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0xFE, ctx.c.stackPointer);
 
     // Preserves flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.carry = true;
@@ -1307,7 +1345,8 @@ test "CPU PHP" {
 }
 
 test "CPU PLA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const pla = cpu.Cpu.getOpcode("PLA", .implied_bus);
 
     // Basic pull
@@ -1318,14 +1357,14 @@ test "CPU PLA" {
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Increments stack pointer
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.b.write(0, pla);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0xFF, ctx.c.stackPointer);
 
     // Zero flag when pulling zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.b.write(0x01FF, 0x00);
     ctx.b.write(0, pla);
@@ -1334,7 +1373,7 @@ test "CPU PLA" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when pulling negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.b.write(0x01FF, 0x80);
     ctx.b.write(0, pla);
@@ -1345,7 +1384,8 @@ test "CPU PLA" {
 
 
 test "CPU PLP" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const plp = cpu.Cpu.getOpcode("PLP", .implied_bus);
 
     // Basic pull flags
@@ -1359,14 +1399,14 @@ test "CPU PLP" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Increments stack pointer
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.b.write(0, plp);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0xFF, ctx.c.stackPointer);
 
     // Ignores break flag from pulled value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.c.statusRegister.break_cmd = false;
     ctx.b.write(0x01FF, 0b00010000); // B=1 in pulled value
@@ -1375,7 +1415,7 @@ test "CPU PLP" {
     try testing.expectEqual(false, ctx.c.statusRegister.break_cmd);
 
     // Unused flag stays true
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.b.write(0x01FF, 0x00); // All zeros including unused
     ctx.b.write(0, plp);
@@ -1383,7 +1423,7 @@ test "CPU PLP" {
     try testing.expectEqual(true, ctx.c.statusRegister.unused);
 
     // Clears flags when pulling zeros
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFE;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.overflow = true;
@@ -1399,7 +1439,8 @@ test "CPU PLP" {
 }
 
 test "CPU ROL" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const rol_a = cpu.Cpu.getOpcode("ROL", .accumulator);
 
     // Basic rotate left - bit 7 goes to carry
@@ -1411,7 +1452,7 @@ test "CPU ROL" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Carry rotates into bit 0
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000000;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, rol_a);
@@ -1420,7 +1461,7 @@ test "CPU ROL" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Full rotation with carry in and out
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b10000001;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, rol_a);
@@ -1429,7 +1470,7 @@ test "CPU ROL" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Sets zero flag
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b10000000;
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, rol_a);
@@ -1437,7 +1478,7 @@ test "CPU ROL" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // Sets negative flag
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b01000000;
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, rol_a);
@@ -1446,7 +1487,8 @@ test "CPU ROL" {
 }
 
 test "CPU ROR" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const ror_a = cpu.Cpu.getOpcode("ROR", .accumulator);
 
     // Basic rotate right - bit 0 goes to carry
@@ -1458,7 +1500,7 @@ test "CPU ROR" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Carry rotates into bit 7
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000000;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, ror_a);
@@ -1467,7 +1509,7 @@ test "CPU ROR" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry);
 
     // Full rotation with carry in and out
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b10000001;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, ror_a);
@@ -1476,7 +1518,7 @@ test "CPU ROR" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Sets zero flag
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000001;
     ctx.c.statusRegister.carry = false;
     ctx.b.write(0, ror_a);
@@ -1484,7 +1526,7 @@ test "CPU ROR" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // Sets negative flag (when carry rotates into bit 7)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0b00000000;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, ror_a);
@@ -1493,7 +1535,8 @@ test "CPU ROR" {
 }
 
 test "CPU RTI" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const rti = cpu.Cpu.getOpcode("RTI", .implied_bus);
 
     // Returns to correct address and restores flags
@@ -1511,7 +1554,7 @@ test "CPU RTI" {
     try testing.expectEqual(0xFF, ctx.c.stackPointer);
 
     // Ignores break flag from pulled value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFC;
     ctx.c.statusRegister.break_cmd = false;
     ctx.b.write(0x01FD, 0b00010000); // B=1 in pulled value
@@ -1523,7 +1566,8 @@ test "CPU RTI" {
 }
 
 test "CPU RTS" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const rts = cpu.Cpu.getOpcode("RTS", .implied_bus);
 
     // Returns to address + 1
@@ -1536,7 +1580,7 @@ test "CPU RTS" {
     try testing.expectEqual(0xFF, ctx.c.stackPointer);
 
     // Doesn't affect flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0xFD;
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.overflow = true;
@@ -1553,7 +1597,8 @@ test "CPU RTS" {
 }
 
 test "CPU SBC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sbc_imm = cpu.Cpu.getOpcode("SBC", .immediate);
 
     // Basic subtraction: 0x50 - 0x10 - (1-1) = 0x40
@@ -1566,7 +1611,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry); // No borrow occurred
 
     // Subtraction with borrow: 0x50 - 0x10 - 1 = 0x3F
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x50;
     ctx.c.statusRegister.carry = false; // Borrow
     ctx.b.write(0, sbc_imm);
@@ -1576,7 +1621,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Sets zero flag: 0x10 - 0x10 = 0x00
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x10;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1586,7 +1631,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.zero);
 
     // Carry set when A == M (no borrow occurs)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x50;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1596,7 +1641,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry); // No borrow when A == M
 
     // Clears carry (sets borrow): 0x10 - 0x20 = 0xF0 (underflow)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x10;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1606,7 +1651,7 @@ test "CPU SBC" {
     try testing.expectEqual(false, ctx.c.statusRegister.carry); // Borrow occurred
 
     // Sets negative flag
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x00;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1616,7 +1661,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.negative);
 
     // Sets overflow flag: 0x80 - 0x01 = 0x7F (negative - positive = positive)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1626,7 +1671,7 @@ test "CPU SBC" {
     try testing.expectEqual(true, ctx.c.statusRegister.overflow);
 
     // Sets overflow flag: 0x7F - 0xFF = 0x80 (positive - negative = negative)
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x7F;
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sbc_imm);
@@ -1637,7 +1682,8 @@ test "CPU SBC" {
 }
 
 test "CPU SEC" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sec = cpu.Cpu.getOpcode("SEC", .implied);
 
     // Sets carry flag
@@ -1647,14 +1693,14 @@ test "CPU SEC" {
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Carry already set stays set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.carry = true;
     ctx.b.write(0, sec);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(true, ctx.c.statusRegister.carry);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.negative = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.zero = true;
@@ -1667,7 +1713,8 @@ test "CPU SEC" {
 }
 
 test "CPU SED" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sed = cpu.Cpu.getOpcode("SED", .implied);
 
     // Sets decimal flag when clear
@@ -1677,14 +1724,14 @@ test "CPU SED" {
     try testing.expectEqual(true, ctx.c.statusRegister.decimal);
 
     // Decimal already set stays set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.decimal = true;
     ctx.b.write(0, sed);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(true, ctx.c.statusRegister.decimal);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.negative = true;
@@ -1701,7 +1748,8 @@ test "CPU SED" {
 }
 
 test "CPU SEI" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sei = cpu.Cpu.getOpcode("SEI", .implied);
 
     // Sets interrupt flag when clear
@@ -1711,14 +1759,14 @@ test "CPU SEI" {
     try testing.expectEqual(true, ctx.c.statusRegister.interrupt_disable);
 
     // Interrupt already set stays set
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.interrupt_disable = true;
     ctx.b.write(0, sei);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(true, ctx.c.statusRegister.interrupt_disable);
 
     // Doesn't affect other flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.overflow = true;
     ctx.c.statusRegister.negative = true;
@@ -1735,7 +1783,8 @@ test "CPU SEI" {
 }
 
 test "CPU STA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sta_zp = cpu.Cpu.getOpcode("STA", .zero_page);
 
     // Basic store
@@ -1746,7 +1795,7 @@ test "CPU STA" {
     try testing.expectEqual(0x42, ctx.b.read(0x50));
 
     // Preserves accumulator value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, sta_zp);
     ctx.b.write(1, 0x50);
@@ -1754,7 +1803,7 @@ test "CPU STA" {
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Doesn't affect any flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80; // Negative value
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = false;
@@ -1770,7 +1819,8 @@ test "CPU STA" {
 }
 
 test "CPU STX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const stx_zp = cpu.Cpu.getOpcode("STX", .zero_page);
 
     // Basic store
@@ -1781,7 +1831,7 @@ test "CPU STX" {
     try testing.expectEqual(0x42, ctx.b.read(0x50));
 
     // Preserves X register value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x42;
     ctx.b.write(0, stx_zp);
     ctx.b.write(1, 0x50);
@@ -1789,7 +1839,7 @@ test "CPU STX" {
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Doesn't affect any flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x80; // Negative value
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = false;
@@ -1805,7 +1855,8 @@ test "CPU STX" {
 }
 
 test "CPU STY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const sty_zp = cpu.Cpu.getOpcode("STY", .zero_page);
 
     // Basic store
@@ -1816,7 +1867,7 @@ test "CPU STY" {
     try testing.expectEqual(0x42, ctx.b.read(0x50));
 
     // Preserves Y register value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x42;
     ctx.b.write(0, sty_zp);
     ctx.b.write(1, 0x50);
@@ -1824,7 +1875,7 @@ test "CPU STY" {
     try testing.expectEqual(0x42, ctx.c.yRegister);
 
     // Doesn't affect any flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x80; // Negative value
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = false;
@@ -1840,7 +1891,8 @@ test "CPU STY" {
 }
 
 test "CPU TAX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const tax = cpu.Cpu.getOpcode("TAX", .implied);
 
     // Basic transfer
@@ -1850,14 +1902,14 @@ test "CPU TAX" {
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Preserves accumulator
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, tax);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Zero flag when transferring zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x00;
     ctx.b.write(0, tax);
     ctx.c.step(&ctx.b);
@@ -1865,7 +1917,7 @@ test "CPU TAX" {
     try testing.expectEqual(0x00, ctx.c.xRegister);
 
     // Negative flag when transferring negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80;
     ctx.b.write(0, tax);
     ctx.c.step(&ctx.b);
@@ -1874,7 +1926,8 @@ test "CPU TAX" {
 }
 
 test "CPU TAY" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const tay = cpu.Cpu.getOpcode("TAY", .implied);
 
     // Basic transfer
@@ -1884,14 +1937,14 @@ test "CPU TAY" {
     try testing.expectEqual(0x42, ctx.c.yRegister);
 
     // Preserves accumulator
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x42;
     ctx.b.write(0, tay);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Zero flag when transferring zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x00;
     ctx.b.write(0, tay);
     ctx.c.step(&ctx.b);
@@ -1899,7 +1952,7 @@ test "CPU TAY" {
     try testing.expectEqual(0x00, ctx.c.yRegister);
 
     // Negative flag when transferring negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.accumulator = 0x80;
     ctx.b.write(0, tay);
     ctx.c.step(&ctx.b);
@@ -1908,7 +1961,8 @@ test "CPU TAY" {
 }
 
 test "CPU TSX" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const tsx = cpu.Cpu.getOpcode("TSX", .implied);
 
     // Basic transfer
@@ -1918,14 +1972,14 @@ test "CPU TSX" {
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Preserves stack pointer
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0x42;
     ctx.b.write(0, tsx);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.stackPointer);
 
     // Zero flag when transferring zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0x00;
     ctx.b.write(0, tsx);
     ctx.c.step(&ctx.b);
@@ -1933,7 +1987,7 @@ test "CPU TSX" {
     try testing.expectEqual(0x00, ctx.c.xRegister);
 
     // Negative flag when transferring negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.stackPointer = 0x80;
     ctx.b.write(0, tsx);
     ctx.c.step(&ctx.b);
@@ -1942,7 +1996,8 @@ test "CPU TSX" {
 }
 
 test "CPU TXA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const txa = cpu.Cpu.getOpcode("TXA", .implied);
 
     // Basic transfer
@@ -1952,14 +2007,14 @@ test "CPU TXA" {
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Preserves X register
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x42;
     ctx.b.write(0, txa);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Zero flag when transferring zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x00;
     ctx.b.write(0, txa);
     ctx.c.step(&ctx.b);
@@ -1967,7 +2022,7 @@ test "CPU TXA" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when transferring negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x80;
     ctx.b.write(0, txa);
     ctx.c.step(&ctx.b);
@@ -1976,7 +2031,8 @@ test "CPU TXA" {
 }
 
 test "CPU TXS" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const txs = cpu.Cpu.getOpcode("TXS", .implied);
 
     // Basic transfer
@@ -1986,14 +2042,14 @@ test "CPU TXS" {
     try testing.expectEqual(0x42, ctx.c.stackPointer);
 
     // Preserves X register
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x42;
     ctx.b.write(0, txs);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.xRegister);
 
     // Doesn't affect any flags
-    ctx = setup();
+    setup(&ctx);
     ctx.c.xRegister = 0x80; // Negative value
     ctx.c.statusRegister.zero = true;
     ctx.c.statusRegister.negative = true;
@@ -2008,7 +2064,8 @@ test "CPU TXS" {
 }
 
 test "CPU TYA" {
-    var ctx = setup();
+    var ctx: TestContext = undefined;
+    setup(&ctx);
     const tya = cpu.Cpu.getOpcode("TYA", .implied);
 
     // Basic transfer
@@ -2018,14 +2075,14 @@ test "CPU TYA" {
     try testing.expectEqual(0x42, ctx.c.accumulator);
 
     // Preserves Y register
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x42;
     ctx.b.write(0, tya);
     ctx.c.step(&ctx.b);
     try testing.expectEqual(0x42, ctx.c.yRegister);
 
     // Zero flag when transferring zero
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x00;
     ctx.b.write(0, tya);
     ctx.c.step(&ctx.b);
@@ -2033,7 +2090,7 @@ test "CPU TYA" {
     try testing.expectEqual(0x00, ctx.c.accumulator);
 
     // Negative flag when transferring negative value
-    ctx = setup();
+    setup(&ctx);
     ctx.c.yRegister = 0x80;
     ctx.b.write(0, tya);
     ctx.c.step(&ctx.b);

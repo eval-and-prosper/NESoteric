@@ -1,29 +1,21 @@
 const std = @import("std");
 const testing = std.testing;
 
+const Mapper = @import("mapper.zig").Mapper;
+
 pub const Bus = struct {
     const ram_size = 0x800;
+
+    mapper: ?*Mapper = null,
     ram: [ram_size]u8 = [_]u8{0} ** ram_size,
-    // TODO temporary - vectors at $FFFA-$FFFF (NMI, Reset, IRQ)
-    vectors: [6]u8 = [_]u8{0} ** 6,
 
     pub fn read(self: *Bus, address: u16) u8 {
-        // TODO temporary - handle vectors
-        if (address >= 0xFFFA) {
-            return self.vectors[address - 0xFFFA];
-        } else if (address < 0x2000) {
-            //ram
-            return self.ram[address & 0x07FF];
-        } else if (address < 0x4000) {
-            //ppu
-        } else if (address < 0x4020) {
-            //apu
-        } else {
-            //cart
-        }
-
-        //temporary and wrong
-        return 0;
+        return switch (address) {
+            0x0000...0x1FFF => self.ram[address & 0x07FF], // RAM (mirrored)
+            0x2000...0x3FFF => 0, // TODO PPU registers (mirrored)
+            0x4000...0x401F => 0, // TODO APU and I/O registers
+            0x4020...0xFFFF => if (self.mapper) |mapper| mapper.read(address) else 0, // Cartridge
+        };
     }
 
     pub fn read16(self: *Bus, address: u16) u16 {
@@ -39,18 +31,11 @@ pub const Bus = struct {
     }
 
     pub fn write(self: *Bus, address: u16, value: u8) void {
-        // TODO temporary - handle vectors
-        if (address >= 0xFFFA) {
-            self.vectors[address - 0xFFFA] = value;
-        } else if (address < 0x2000) {
-            //ram
-            self.ram[address & 0x07FF] = value;
-        } else if (address < 0x4000) {
-            //ppu
-        } else if (address < 0x4020) {
-            //apu
-        } else {
-            //cart
+        switch (address) {
+            0x0000...0x1FFF => self.ram[address & 0x07FF] = value, // RAM (mirrored)
+            0x2000...0x3FFF => {}, // TODO PPU registers (mirrored)
+            0x4000...0x401F => {}, // TODO APU and I/O registers
+            0x4020...0xFFFF => if (self.mapper) |mapper| mapper.write(address, value), // Cartridge
         }
     }
 
@@ -60,7 +45,7 @@ pub const Bus = struct {
     }
 };
 
-test "bus" {
+test "Bus" {
     var bus = Bus{};
 
     bus.write(0, 0xAA);
